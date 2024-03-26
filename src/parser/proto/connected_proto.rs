@@ -143,7 +143,7 @@ impl ConnectedTx for FConnectedTransaction {
     fn from(tx: &Transaction) -> Self {
         FConnectedTransaction {
             version: tx.version,
-            lock_time: tx.lock_time,
+            lock_time: tx.lock_time.into(),
             txid: tx.txid(),
             input: Vec::new(),
             output: tx.output.clone().into_iter().map(|x| x.into()).collect(),
@@ -163,7 +163,7 @@ impl ConnectedTx for FConnectedTransaction {
         let is_coinbase = tx.is_coin_base();
         Ok(FConnectedTransaction {
             version: tx.version,
-            lock_time: tx.lock_time,
+            lock_time: tx.lock_time.into(),
             txid: tx.txid(),
             input: connect_tx_inputs(&tx.input, is_coinbase, tx_db, blk_index, blk_file)?
                 .into_iter()

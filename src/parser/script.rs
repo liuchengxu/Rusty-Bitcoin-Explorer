@@ -40,7 +40,7 @@ pub struct ScriptInfo {
 /// This function extract addresses and script type from Script.
 ///
 pub fn evaluate_script(script: &Script, net: Network) -> ScriptInfo {
-    let address = Address::from_script(script, net);
+    let address = Address::from_script(script, net).ok();
     if script.is_p2pk() {
         ScriptInfo::new(p2pk_to_address(script), ScriptType::Pay2PublicKey)
     } else if script.is_p2pkh() {
@@ -185,7 +185,7 @@ fn decode_from_op_n(op: &All) -> i32 {
     } else if op.eq(&all::OP_PUSHNUM_NEG1) {
         -1
     } else {
-        op.into_u8() as i32 + 1 - all::OP_PUSHNUM_1.into_u8() as i32
+        op.to_u8() as i32 + 1 - all::OP_PUSHNUM_1.to_u8() as i32
     }
 }
 
@@ -236,7 +236,7 @@ trait Cmp {
 
 impl Cmp for bitcoin::blockdata::opcodes::All {
     fn ge(&self, other: &Self) -> bool {
-        self.into_u8() >= other.into_u8()
+        self.to_u8() >= other.to_u8()
     }
 }
 

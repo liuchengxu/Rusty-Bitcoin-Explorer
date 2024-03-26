@@ -82,7 +82,7 @@ impl From<Transaction> for FTransaction {
         let input = if is_coinbase { Vec::new() } else { tx.input };
         FTransaction {
             version: tx.version,
-            lock_time: tx.lock_time,
+            lock_time: tx.lock_time.into(),
             txid,
             input,
             output: tx.output.into_iter().map(FTxOut::from).collect(),

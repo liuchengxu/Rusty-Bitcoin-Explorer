@@ -181,7 +181,7 @@ where
             let prev_txo = match tx_outs.get(pos).unwrap() {
                 Ok(bytes) => match bytes {
                     None => None,
-                    Some(bytes) => txo_from_u8(bytes.as_slice()),
+                    Some(bytes) => txo_from_u8(bytes.to_vec()),
                 },
                 Err(_) => None,
             };
@@ -243,8 +243,8 @@ fn txo_to_u8(txo: &TxOut) -> Vec<u8> {
 
 #[inline(always)]
 #[cfg(feature = "on-disk-utxo")]
-fn txo_from_u8(bytes: &[u8]) -> Option<TxOut> {
-    match TxOut::consensus_decode(bytes) {
+fn txo_from_u8(bytes: Vec<u8>) -> Option<TxOut> {
+    match TxOut::consensus_decode(&mut bytes.as_slice()) {
         Ok(txo) => Some(txo),
         Err(_) => None,
     }
