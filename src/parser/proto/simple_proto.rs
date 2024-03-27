@@ -49,7 +49,7 @@ pub struct SBlockHeader {
 }
 
 impl SBlockHeader {
-    pub fn parse(blk: bitcoin::BlockHeader, block_hash: BlockHash) -> SBlockHeader {
+    pub fn parse(blk: crate::BlockHeader, block_hash: BlockHash) -> SBlockHeader {
         SBlockHeader {
             block_hash,
             time: blk.time,
@@ -79,8 +79,8 @@ pub struct STransaction {
 
 impl From<Transaction> for STransaction {
     fn from(tx: Transaction) -> STransaction {
-        let is_coinbase = tx.is_coin_base();
-        let txid = tx.txid();
+        let is_coinbase = tx.is_coinbase();
+        let txid = tx.compute_txid();
         let input = if is_coinbase {
             Vec::new()
         } else {
@@ -119,7 +119,7 @@ impl From<TxOut> for STxOut {
     fn from(out: TxOut) -> STxOut {
         let eval = evaluate_script(&out.script_pubkey, bitcoin::Network::Bitcoin);
         STxOut {
-            value: out.value,
+            value: out.value.to_sat(),
             addresses: eval.addresses.into_boxed_slice(),
         }
     }

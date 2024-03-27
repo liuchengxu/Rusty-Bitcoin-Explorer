@@ -3,7 +3,8 @@
 //!
 use crate::api::Block;
 use crate::parser::script::{evaluate_script, ScriptType};
-use bitcoin::{Address, BlockHash, Transaction, TxMerkleNode, TxOut, Txid};
+use bitcoin::hash_types::TxMerkleNode;
+use bitcoin::{Address, BlockHash, Transaction, TxOut, Txid};
 use serde::{Deserialize, Serialize};
 
 ///
@@ -46,14 +47,14 @@ pub struct FBlockHeader {
 
 impl FBlockHeader {
     /// obtain addresses for each output
-    pub fn parse(b: bitcoin::BlockHeader, block_hash: BlockHash) -> FBlockHeader {
+    pub fn parse(b: crate::BlockHeader, block_hash: BlockHash) -> FBlockHeader {
         FBlockHeader {
-            version: b.version,
+            version: b.version.to_consensus(),
             block_hash,
             prev_blockhash: b.prev_blockhash,
             merkle_root: b.merkle_root,
             time: b.time,
-            bits: b.bits,
+            bits: b.bits.to_consensus(),
             nonce: b.nonce,
         }
     }
@@ -77,12 +78,12 @@ pub struct FTransaction {
 
 impl From<Transaction> for FTransaction {
     fn from(tx: Transaction) -> FTransaction {
-        let is_coinbase = tx.is_coin_base();
-        let txid = tx.txid();
+        let is_coinbase = tx.is_coinbase();
+        let txid = tx.compute_txid();
         let input = if is_coinbase { Vec::new() } else { tx.input };
         FTransaction {
-            version: tx.version,
-            lock_time: tx.lock_time.into(),
+            version: tx.version.0,
+            lock_time: tx.lock_time.to_consensus_u32(),
             txid,
             input,
             output: tx.output.into_iter().map(FTxOut::from).collect(),
@@ -93,7 +94,7 @@ impl From<Transaction> for FTransaction {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct FTxOut {
     pub value: u64,
-    pub script_pubkey: bitcoin::Script,
+    pub script_pubkey: bitcoin::ScriptBuf,
     pub script_type: ScriptType,
     pub addresses: Box<[Address]>,
 }
@@ -102,7 +103,7 @@ impl From<TxOut> for FTxOut {
     fn from(out: bitcoin::TxOut) -> FTxOut {
         let eval = evaluate_script(&out.script_pubkey, bitcoin::Network::Bitcoin);
         FTxOut {
-            value: out.value,
+            value: out.value.to_sat(),
             script_pubkey: out.script_pubkey,
             script_type: eval.pattern,
             addresses: eval.addresses.into_boxed_slice(),

@@ -1,7 +1,6 @@
-use bitcoin::blockdata::opcodes::{all, All};
+use bitcoin::blockdata::opcodes::{all, Opcode};
 use bitcoin::blockdata::script::Instruction;
 use bitcoin::hashes::{hash160, Hash};
-use bitcoin::util::address::Payload;
 use bitcoin::{Address, Network, PubkeyHash, PublicKey, Script};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -47,9 +46,9 @@ pub fn evaluate_script(script: &Script, net: Network) -> ScriptInfo {
         ScriptInfo::new(address, ScriptType::Pay2PublicKeyHash)
     } else if script.is_p2sh() {
         ScriptInfo::new(address, ScriptType::Pay2ScriptHash)
-    } else if script.is_v0_p2wpkh() {
+    } else if script.is_p2wpkh() {
         ScriptInfo::new(address, ScriptType::Pay2WitnessPublicKeyHash)
-    } else if script.is_v0_p2wsh() {
+    } else if script.is_p2wsh() {
         ScriptInfo::new(address, ScriptType::Pay2WitnessScriptHash)
     } else if script.is_witness_program() {
         ScriptInfo::new(address, ScriptType::WitnessProgram)
@@ -149,7 +148,7 @@ fn multisig_addresses(script: &Script) -> Vec<Address> {
     // obtain number of keys
     let num_keys = {
         if let Some(Op(op)) = ops.get(ops.len() - 2) {
-            decode_from_op_n(op)
+            decode_from_op_n(*op)
         } else {
             unreachable!()
         }
@@ -158,11 +157,8 @@ fn multisig_addresses(script: &Script) -> Vec<Address> {
     let mut public_keys = Vec::with_capacity(num_keys as usize);
     for op in ops.iter().skip(1).take(num_keys as usize) {
         if let PushBytes(data) = op {
-            match PublicKey::from_slice(data) {
-                Ok(pk) => public_keys.push(Address {
-                    payload: Payload::PubkeyHash(pk.pubkey_hash()),
-                    network: Network::Bitcoin,
-                }),
+            match PublicKey::from_slice(data.as_bytes()) {
+                Ok(pk) => public_keys.push(Address::p2pkh(pk.pubkey_hash(), Network::Bitcoin)),
                 Err(_) => return Vec::new(),
             }
         } else {
@@ -179,7 +175,7 @@ fn multisig_addresses(script: &Script) -> Vec<Address> {
 /// [decodeFromOpN()](https://github.com/bitcoinj/bitcoinj/blob/d3d5edbcbdb91b25de4df3b6ed6740d7e2329efc/core/src/main/java/org/bitcoinj/script/Script.java#L515:L524)
 ///
 #[inline]
-fn decode_from_op_n(op: &All) -> i32 {
+fn decode_from_op_n(op: Opcode) -> i32 {
     if op.eq(&all::OP_PUSHBYTES_0) {
         0
     } else if op.eq(&all::OP_PUSHNUM_NEG1) {
@@ -203,7 +199,7 @@ fn get_num_keys(op: &Instruction) -> Option<i32> {
             {
                 None
             } else {
-                Some(decode_from_op_n(op))
+                Some(decode_from_op_n(*op))
             }
         }
     }
@@ -220,11 +216,11 @@ fn p2pk_to_address(script: &Script) -> Option<Address> {
     assert!(script.is_p2pk());
     if let Some(Ok(Instruction::PushBytes(pk))) = script.instructions().next() {
         // hash the 20 bytes public key
-        let pkh = hash160::Hash::hash(pk);
-        Some(Address {
-            payload: Payload::PubkeyHash(PubkeyHash::from_slice(&pkh).ok()?),
-            network: Network::Bitcoin,
-        })
+        let pkh = hash160::Hash::hash(pk.as_bytes());
+        Some(Address::p2pkh(
+            PubkeyHash::from_slice(pkh.as_ref()).ok()?,
+            Network::Bitcoin,
+        ))
     } else {
         unreachable!()
     }
@@ -234,7 +230,7 @@ trait Cmp {
     fn ge(&self, other: &Self) -> bool;
 }
 
-impl Cmp for bitcoin::blockdata::opcodes::All {
+impl Cmp for bitcoin::blockdata::opcodes::Opcode {
     fn ge(&self, other: &Self) -> bool {
         self.to_u8() >= other.to_u8()
     }
@@ -260,7 +256,6 @@ impl fmt::Display for ScriptType {
 #[cfg(test)]
 mod tests {
     use super::{evaluate_script, ScriptType};
-    use bitcoin::hashes::hex::{FromHex, ToHex};
     use bitcoin::{Network, Script};
 
     #[test]
@@ -271,10 +266,7 @@ mod tests {
             0x76 as u8, 0xa9, 0x14, 0x12, 0xab, 0x8d, 0xc5, 0x88, 0xca, 0x9d, 0x57, 0x87, 0xdd,
             0xe7, 0xeb, 0x29, 0x56, 0x9d, 0xa6, 0x3c, 0x3a, 0x23, 0x8c, 0x88, 0xac,
         ];
-        let result = evaluate_script(
-            &Script::from_hex(&bytes.to_hex()).unwrap(),
-            Network::Bitcoin,
-        );
+        let result = evaluate_script(&Script::from_bytes(&bytes), Network::Bitcoin);
         assert_eq!(
             result.addresses.get(0).unwrap().to_string(),
             String::from("12higDjoCCNXSA95xZMWUdPvXNmkAduhWv")
@@ -295,10 +287,7 @@ mod tests {
             0x40, 0x78, 0xb4, 0x8b, 0xa6, 0x7f, 0xa1, 0x98, 0x78, 0x2e, 0x8b, 0xb6, 0x81, 0x15,
             0xda, 0x0d, 0xaa, 0x8f, 0xde, 0x53, 0x01, 0xf7, 0xf9, 0xac,
         ]; // OP_CHECKSIG
-        let result = evaluate_script(
-            &Script::from_hex(&bytes.to_hex()).unwrap(),
-            Network::Bitcoin,
-        );
+        let result = evaluate_script(&Script::from_bytes(&bytes), Network::Bitcoin);
         assert_eq!(
             result.addresses.get(0).unwrap().to_string(),
             String::from("1LEWwJkDj8xriE87ALzQYcHjTmD8aqDj1f")
@@ -323,10 +312,7 @@ mod tests {
             0x73, 0xfb, 0x8c, 0x6e, 0xbc, 0x18, 0x53, 0xae,
         ];
 
-        let result = evaluate_script(
-            &Script::from_hex(&bytes.to_hex()).unwrap(),
-            Network::Bitcoin,
-        );
+        let result = evaluate_script(&Script::from_bytes(&bytes), Network::Bitcoin);
         assert_eq!(result.pattern, ScriptType::Pay2MultiSig);
     }
 
@@ -339,10 +325,7 @@ mod tests {
             0xe9, 0xc3, 0xdd, 0x0c, 0x07, 0xaa, 0xc7, 0x61, 0x79, 0xeb, 0xc7, 0x6a, 0x6c, 0x78,
             0xd4, 0xd6, 0x7c, 0x6c, 0x16, 0x0a, 0x87,
         ]; // OP_EQUAL
-        let result = evaluate_script(
-            &Script::from_hex(&bytes.to_hex()).unwrap(),
-            Network::Bitcoin,
-        );
+        let result = evaluate_script(&Script::from_bytes(&bytes), Network::Bitcoin);
         assert_eq!(
             result.addresses.get(0).unwrap().to_string(),
             String::from("3P14159f73E4gFr7JterCCQh9QjiTjiZrG")
@@ -355,10 +338,7 @@ mod tests {
         // Raw output script: 736372697074
         //                    OP_IFDUP OP_IF OP_2SWAP OP_VERIFY OP_2OVER OP_DEPTH
         let bytes = [0x73 as u8, 0x63, 0x72, 0x69, 0x70, 0x74];
-        let result = evaluate_script(
-            &Script::from_hex(&bytes.to_hex()).unwrap(),
-            Network::Bitcoin,
-        );
+        let result = evaluate_script(&Script::from_bytes(&bytes), Network::Bitcoin);
         assert_eq!(result.addresses.get(0), None);
         assert_eq!(result.pattern, ScriptType::NotRecognised);
     }
@@ -366,10 +346,7 @@ mod tests {
     #[test]
     fn test_bitcoin_bogus_script() {
         let bytes = [0x4c as u8, 0xFF, 0x00];
-        let result = evaluate_script(
-            &Script::from_hex(&bytes.to_hex()).unwrap(),
-            Network::Bitcoin,
-        );
+        let result = evaluate_script(&Script::from_bytes(&bytes), Network::Bitcoin);
         assert_eq!(result.addresses.get(0), None);
         assert_eq!(result.pattern, ScriptType::NotRecognised);
     }

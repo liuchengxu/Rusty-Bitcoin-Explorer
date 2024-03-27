@@ -3,8 +3,8 @@ use crate::parser::errors::{OpError, OpResult};
 use crate::parser::proto::full_proto::{FBlockHeader, FTxOut};
 use crate::parser::proto::simple_proto::{SBlockHeader, STxOut};
 use crate::parser::tx_index::TxDB;
-use crate::BlockIndex;
-use bitcoin::{Block, BlockHash, BlockHeader, Transaction, TxIn, TxOut, Txid};
+use crate::{BlockHeader, BlockIndex};
+use bitcoin::{Block, BlockHash, Transaction, TxIn, TxOut, Txid};
 use log::warn;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -142,9 +142,9 @@ impl ConnectedTx for FConnectedTransaction {
 
     fn from(tx: &Transaction) -> Self {
         FConnectedTransaction {
-            version: tx.version,
-            lock_time: tx.lock_time.into(),
-            txid: tx.txid(),
+            version: tx.version.0,
+            lock_time: tx.lock_time.to_consensus_u32(),
+            txid: tx.compute_txid(),
             input: Vec::new(),
             output: tx.output.clone().into_iter().map(|x| x.into()).collect(),
         }
@@ -160,11 +160,11 @@ impl ConnectedTx for FConnectedTransaction {
         blk_index: &BlockIndex,
         blk_file: &BlkFile,
     ) -> OpResult<Self> {
-        let is_coinbase = tx.is_coin_base();
+        let is_coinbase = tx.is_coinbase();
         Ok(FConnectedTransaction {
-            version: tx.version,
-            lock_time: tx.lock_time.into(),
-            txid: tx.txid(),
+            version: tx.version.0,
+            lock_time: tx.lock_time.to_consensus_u32(),
+            txid: tx.compute_txid(),
             input: connect_tx_inputs(&tx.input, is_coinbase, tx_db, blk_index, blk_file)?
                 .into_iter()
                 .map(|x| x.into())
@@ -179,7 +179,7 @@ impl ConnectedTx for SConnectedTransaction {
 
     fn from(tx: &Transaction) -> Self {
         SConnectedTransaction {
-            txid: tx.txid(),
+            txid: tx.compute_txid(),
             input: Vec::new(),
             output: tx.output.clone().into_iter().map(|x| x.into()).collect(),
         }
@@ -195,9 +195,9 @@ impl ConnectedTx for SConnectedTransaction {
         blk_index: &BlockIndex,
         blk_file: &BlkFile,
     ) -> OpResult<Self> {
-        let is_coinbase = tx.is_coin_base();
+        let is_coinbase = tx.is_coinbase();
         Ok(SConnectedTransaction {
-            txid: tx.txid(),
+            txid: tx.compute_txid(),
             input: connect_tx_inputs(&tx.input, is_coinbase, tx_db, blk_index, blk_file)?
                 .into_iter()
                 .map(|x| x.into())
@@ -293,7 +293,7 @@ where
     // reconstruct block
     let mut connected_tx = Vec::with_capacity(transactions.len());
     for tx in transactions {
-        let outpoints_count = if tx.is_coin_base() { 0 } else { tx.input.len() };
+        let outpoints_count = if tx.is_coinbase() { 0 } else { tx.input.len() };
 
         let mut outputs = Vec::with_capacity(outpoints_count);
         for _ in 0..tx.input.len() {

@@ -2,13 +2,13 @@ use crate::parser::block_index::BlockIndex;
 use crate::parser::errors::{OpError, OpResult};
 use crate::parser::reader::BlockchainRead;
 use bitcoin::hashes::Hash;
+use bitcoin::io::Cursor;
 use bitcoin::Txid;
 use leveldb::database::Database;
 use leveldb::kv::KV;
 use leveldb::options::{Options, ReadOptions};
 use log::{info, warn};
 use std::collections::BTreeMap;
-use std::io::Cursor;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -108,7 +108,7 @@ impl TxDB {
     /// note that this function cannot find genesis block, which needs special treatment
     pub(crate) fn get_tx_record(&self, txid: &Txid) -> OpResult<TransactionRecord> {
         if let Some(db) = &self.db {
-            let inner = txid.as_inner();
+            let inner = txid.as_byte_array();
             let mut key = Vec::with_capacity(inner.len() + 1);
             key.push(b't');
             key.extend(inner);

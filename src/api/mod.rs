@@ -38,8 +38,9 @@ pub use crate::parser::proto::connected_proto::{
 };
 pub use crate::parser::proto::full_proto::{FBlock, FBlockHeader, FTransaction, FTxOut};
 pub use crate::parser::proto::simple_proto::{SBlock, SBlockHeader, STransaction, STxOut};
-pub use bitcoin::hashes::hex::{FromHex, ToHex};
-pub use bitcoin::{Address, Block, BlockHash, BlockHeader, Network, Script, Transaction, Txid};
+pub use bitcoin::blockdata::block::Header as BlockHeader;
+pub use bitcoin::hashes::hex::FromHex;
+pub use bitcoin::{Address, Block, BlockHash, Network, Script, ScriptBuf, Transaction, Txid};
 
 ///
 /// Extract addresses from a script public key.
@@ -54,8 +55,8 @@ pub fn parse_script(script_pub_key: &str) -> OpResult<ScriptInfo> {
 ///
 #[inline]
 pub fn get_addresses_from_script(script_pub_key: &str) -> OpResult<ScriptInfo> {
-    let script = Script::from_hex(script_pub_key)?;
-    Ok(evaluate_script(&script, Network::Bitcoin))
+    let script_buf = ScriptBuf::from_hex(script_pub_key)?;
+    Ok(evaluate_script(script_buf.as_script(), Network::Bitcoin))
 }
 
 pub struct InnerDB {

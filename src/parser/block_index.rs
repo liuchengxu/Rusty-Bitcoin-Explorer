@@ -1,6 +1,8 @@
 use crate::parser::errors::OpResult;
 use crate::parser::reader::BlockchainRead;
-use bitcoin::{BlockHash, BlockHeader};
+use crate::BlockHeader;
+use bitcoin::io::Cursor;
+use bitcoin::BlockHash;
 use leveldb::database::iterator::LevelDBIterator;
 use leveldb::database::Database;
 use leveldb::iterator::Iterable;
@@ -9,7 +11,6 @@ use log::info;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
-use std::io::Cursor;
 use std::path::Path;
 
 ///

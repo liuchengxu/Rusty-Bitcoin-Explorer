@@ -1,10 +1,11 @@
 use crate::parser::errors::{OpError, OpErrorKind, OpResult};
 use crate::parser::reader::BlockchainRead;
+use bitcoin::io::Cursor;
 use bitcoin::{Block, Transaction};
 use std::collections::HashMap;
 use std::convert::From;
 use std::fs::{self, DirEntry, File};
-use std::io::{self, BufReader, Cursor, Seek, SeekFrom};
+use std::io::{self, BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 ///

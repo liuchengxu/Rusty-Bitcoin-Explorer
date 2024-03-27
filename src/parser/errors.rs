@@ -1,4 +1,3 @@
-use bitcoin::hashes::hex::Error;
 use std::convert::{self, From};
 use std::error;
 use std::fmt;
@@ -99,15 +98,39 @@ impl From<bitcoin::consensus::encode::Error> for OpError {
     }
 }
 
-impl From<bitcoin::hashes::hex::Error> for OpError {
-    fn from(_: Error) -> Self {
-        Self::from("not a valid hash")
+impl From<bitcoin::hashes::hex::error::OddLengthStringError> for OpError {
+    fn from(_: bitcoin::hashes::hex::error::OddLengthStringError) -> Self {
+        Self::from("not a valid hash: HexToArrayError")
     }
 }
 
-impl From<bitcoin::hashes::Error> for OpError {
-    fn from(_: bitcoin::hashes::Error) -> Self {
-        Self::from("bitcoin_hash error")
+impl From<bitcoin::hashes::hex::error::HexToArrayError> for OpError {
+    fn from(_: bitcoin::hashes::hex::error::HexToArrayError) -> Self {
+        Self::from("not a valid hash: HexToArrayError")
+    }
+}
+
+impl From<bitcoin::hashes::hex::error::HexToBytesError> for OpError {
+    fn from(_: bitcoin::hashes::hex::error::HexToBytesError) -> Self {
+        Self::from("not a valid hash: HexToBytesError")
+    }
+}
+
+impl From<bitcoin::hashes::hex::error::InvalidCharError> for OpError {
+    fn from(_: bitcoin::hashes::hex::error::InvalidCharError) -> Self {
+        Self::from("not a valid hash: InvalidCharError")
+    }
+}
+
+impl From<bitcoin::hashes::FromSliceError> for OpError {
+    fn from(_: bitcoin::hashes::FromSliceError) -> Self {
+        Self::from("bitcoin_hash parse error")
+    }
+}
+
+impl From<bitcoin::io::Error> for OpError {
+    fn from(_: bitcoin::io::Error) -> Self {
+        Self::from("bitcoin IO error")
     }
 }
 

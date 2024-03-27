@@ -1,14 +1,16 @@
 use crate::parser::errors::OpResult;
+use crate::BlockHeader;
 use bitcoin::consensus::Decodable;
-use bitcoin::{Block, BlockHeader, Transaction};
-use byteorder::{LittleEndian, ReadBytesExt};
+use bitcoin::io::Cursor;
+use bitcoin::{Block, Transaction};
+use byteorder::{ByteOrder, LittleEndian};
 use std::fs::File;
-use std::io::{BufReader, Cursor};
+use std::io::BufReader;
 
 ///
 /// binary file read utilities.
 ///
-pub trait BlockchainRead: std::io::Read {
+pub trait BlockchainRead: bitcoin::io::BufRead {
     #[inline]
     fn read_varint(&mut self) -> OpResult<usize> {
         let mut n = 0;
@@ -40,13 +42,17 @@ pub trait BlockchainRead: std::io::Read {
 
     #[inline]
     fn read_u32(&mut self) -> OpResult<u32> {
-        let u = ReadBytesExt::read_u32::<LittleEndian>(self)?;
+        let mut arr = [0u8; 4];
+        self.read_exact(&mut arr)?;
+        let u = LittleEndian::read_u32(&arr);
         Ok(u)
     }
 
     #[inline]
     fn read_i32(&mut self) -> OpResult<i32> {
-        let u = ReadBytesExt::read_i32::<LittleEndian>(self)?;
+        let mut arr = [0u8; 4];
+        self.read_exact(&mut arr)?;
+        let u = LittleEndian::read_i32(&arr);
         Ok(u)
     }
 

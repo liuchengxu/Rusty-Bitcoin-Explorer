@@ -6,7 +6,6 @@ use crate::parser::proto::connected_proto::{ConnectedBlock, ConnectedTx};
 use crate::BitcoinDB;
 #[cfg(feature = "on-disk-utxo")]
 use bitcoin::consensus::{Decodable, Encodable};
-use bitcoin::hashes::Hash;
 #[cfg(feature = "on-disk-utxo")]
 use bitcoin::TxOut;
 use bitcoin::{Block, Txid};
@@ -44,7 +43,7 @@ where
             // insert new transactions
             for tx in block.txdata.iter() {
                 // clone outputs
-                let txid = tx.txid();
+                let txid = tx.compute_txid();
                 let mut outs: Vec<Option<Box<<TBlock::Tx as ConnectedTx>::TOut>>> =
                     Vec::with_capacity(tx.output.len());
                 for o in tx.output.iter() {
@@ -76,7 +75,7 @@ where
             // insert new transactions
             for tx in block.txdata.iter() {
                 // clone outputs
-                let txid = tx.txid();
+                let txid = tx.compute_txid();
 
                 for (n, o) in (0_u32..).zip(tx.output.iter()) {
                     let key = txo_key(txid, n);
@@ -227,8 +226,10 @@ where
 #[inline(always)]
 #[cfg(feature = "on-disk-utxo")]
 fn txo_key(txid: Txid, n: u32) -> Vec<u8> {
+    use bitcoin::hashes::Hash;
+
     let mut bytes = Vec::with_capacity(KEY_LENGTH as usize);
-    bytes.extend(txid.into_inner());
+    bytes.extend(txid.as_byte_array());
     bytes.extend(n.to_ne_bytes());
     bytes
 }
