@@ -61,6 +61,7 @@ pub(crate) fn update_unspent_cache(
 #[cfg(not(feature = "on-disk-utxo"))]
 pub(crate) fn update_unspent_cache<TBlock>(
     unspent: &Arc<Mutex<HashedMap<Txid, Arc<Mutex<VecMap<<TBlock::Tx as ConnectedTx>::TOut>>>>>>,
+    db: &BitcoinDB,
     height: usize,
 ) -> Result<Block, ()>
 where
