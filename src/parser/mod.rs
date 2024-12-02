@@ -2,7 +2,7 @@
 
 pub mod blk_file;
 pub mod block_index;
-pub mod errors;
+pub mod error;
 pub mod proto;
 pub mod reader;
 pub mod script;

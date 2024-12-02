@@ -1,7 +1,7 @@
 //! On disk transaction index database
 
 use crate::parser::block_index::BlockIndex;
-use crate::parser::errors::{OpError, OpResult};
+use crate::parser::error::{Error, Result};
 use crate::parser::reader::BlockchainRead;
 use bitcoin::hashes::Hash;
 use bitcoin::io::Cursor;
@@ -37,7 +37,7 @@ pub struct TransactionRecord {
 }
 
 impl TransactionRecord {
-    fn from(key: &[u8], values: &[u8]) -> OpResult<Self> {
+    fn from(key: &[u8], values: &[u8]) -> Result<Self> {
         let mut reader = Cursor::new(values);
         Ok(TransactionRecord {
             txid: Txid::from_slice(key)?,
@@ -108,34 +108,27 @@ impl TxDB {
     }
 
     /// note that this function cannot find genesis block, which needs special treatment
-    pub(crate) fn get_tx_record(&self, txid: &Txid) -> OpResult<TransactionRecord> {
-        if let Some(db) = &self.db {
-            let inner = txid.as_byte_array();
-            let mut key = Vec::with_capacity(inner.len() + 1);
-            key.push(b't');
-            key.extend(inner);
-            let key = TxKey { key };
-            let read_options = ReadOptions::new();
-            match db.get(read_options, &key) {
-                Ok(value) => {
-                    if let Some(value) = value {
-                        Ok(TransactionRecord::from(&key.key[1..], value.as_slice())?)
-                    } else {
-                        Err(OpError::from(
-                            format!("value not found for txid: {}", txid).as_str(),
-                        ))
-                    }
+    pub(crate) fn get_tx_record(&self, txid: &Txid) -> Result<TransactionRecord> {
+        let db = self.db.as_ref().ok_or(Error::TxDbUnavailable)?;
+        let inner = txid.as_byte_array();
+        let mut key = Vec::with_capacity(inner.len() + 1);
+        key.push(b't');
+        key.extend(inner);
+        let key = TxKey { key };
+        let read_options = ReadOptions::new();
+        match db.get(read_options, &key) {
+            Ok(value) => {
+                if let Some(value) = value {
+                    Ok(TransactionRecord::from(&key.key[1..], value.as_slice())?)
+                } else {
+                    Err(Error::TransactionRecordNotFound(*txid))
                 }
-                Err(e) => Err(OpError::from(
-                    format!("value not found for txid: {}", e).as_str(),
-                )),
             }
-        } else {
-            Err(OpError::from("TxDB not open"))
+            Err(_e) => Err(Error::TransactionRecordNotFound(*txid)),
         }
     }
 
-    pub(crate) fn get_block_height_of_tx(&self, txid: &Txid) -> OpResult<usize> {
+    pub(crate) fn get_block_height_of_tx(&self, txid: &Txid) -> Result<usize> {
         // genesis transaction requires special treatment
         if self.is_genesis_tx(txid) {
             return Ok(0);
@@ -143,7 +136,7 @@ impl TxDB {
         let record: TransactionRecord = self.get_tx_record(txid)?;
         let file_pos_height = &self.file_pos_to_height;
         match file_pos_height.get(&(record.n_file, record.n_pos)) {
-            None => Err(OpError::from("transaction not found")),
+            None => Err(Error::CannotFindHeightForTransaction(*txid)),
             Some(pos_height) => Ok(*pos_height as usize),
         }
     }

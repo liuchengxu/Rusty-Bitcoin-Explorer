@@ -1,12 +1,11 @@
 //! Read transactions and blocks from blk.dat files.
 
-use crate::parser::errors::{OpError, OpErrorKind, OpResult};
+use crate::parser::error::{Error, Result};
 use crate::parser::reader::BlockchainRead;
 use crate::parser::xor::{XorReader, XOR_MASK_LEN};
 use bitcoin::io::Cursor;
 use bitcoin::{Block, Transaction};
 use std::collections::HashMap;
-use std::convert::From;
 use std::fs::{self, DirEntry, File};
 use std::io::{self, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -31,28 +30,22 @@ fn parse_blk_index(path: impl AsRef<Path>) -> Option<i32> {
 }
 
 /// Scan blk folder to build an index of all blk files.
-fn scan_path(path: &Path) -> OpResult<HashMap<i32, PathBuf>> {
+fn scan_path(path: &Path) -> Result<HashMap<i32, PathBuf>> {
     let mut collected = HashMap::with_capacity(4000);
     for entry in fs::read_dir(path)? {
-        match entry {
-            Ok(de) => {
-                let path = resolve_path(&de)?;
-                if !path.is_file() {
-                    continue;
-                };
+        let de = entry?;
+        let path = resolve_path(&de)?;
+        if !path.is_file() {
+            continue;
+        };
 
-                if let Some(index) = parse_blk_index(path.as_path()) {
-                    collected.insert(index, path);
-                }
-            }
-            Err(msg) => {
-                return Err(OpError::from(msg));
-            }
+        if let Some(index) = parse_blk_index(path.as_path()) {
+            collected.insert(index, path);
         }
     }
     collected.shrink_to_fit();
     if collected.is_empty() {
-        Err(OpError::new(OpErrorKind::RuntimeError).join_msg("No blk files found!"))
+        Err(Error::EmptyBlockFiles)
     } else {
         Ok(collected)
     }
@@ -84,7 +77,7 @@ pub struct BlkFile {
 
 impl BlkFile {
     /// Construct an index of all blk files.
-    pub(crate) fn new(path: &Path) -> OpResult<BlkFile> {
+    pub(crate) fn new(path: &Path) -> Result<BlkFile> {
         let xor_mask = read_xor_mask(path)?;
         Ok(Self {
             files: scan_path(path)?,
@@ -94,11 +87,11 @@ impl BlkFile {
 
     /// Read a Block from blk file.
     #[inline]
-    pub(crate) fn read_raw_block(&self, n_file: i32, offset: u32) -> OpResult<Vec<u8>> {
+    pub(crate) fn read_raw_block(&self, n_file: i32, offset: u32) -> Result<Vec<u8>> {
         let blk_path = self
             .files
             .get(&n_file)
-            .ok_or(OpError::from("blk file not found, sync with bitcoin core"))?;
+            .ok_or(Error::BlockFileNotFound(n_file))?;
 
         let mut r = XorReader::new(File::open(blk_path)?, self.xor_mask);
         r.seek(SeekFrom::Start(offset as u64 - 4))?;
@@ -109,7 +102,7 @@ impl BlkFile {
     }
 
     /// Read a Block from blk file.
-    pub(crate) fn read_block(&self, n_file: i32, offset: u32) -> OpResult<Block> {
+    pub(crate) fn read_block(&self, n_file: i32, offset: u32) -> Result<Block> {
         Cursor::new(self.read_raw_block(n_file, offset)?).read_block()
     }
 
@@ -119,11 +112,11 @@ impl BlkFile {
         n_file: i32,
         n_pos: u32,
         n_tx_offset: u32,
-    ) -> OpResult<Transaction> {
+    ) -> Result<Transaction> {
         let blk_path = self
             .files
             .get(&n_file)
-            .ok_or(OpError::from("blk file not found, sync with bitcoin core"))?;
+            .ok_or(Error::BlockFileNotFound(n_file))?;
 
         let mut r = XorReader::new(File::open(blk_path)?, self.xor_mask);
         // the size of a header is 80.

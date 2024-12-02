@@ -19,7 +19,7 @@
 //! ```
 
 use crate::parser::blk_file::BlkFile;
-use crate::parser::errors::{OpError, OpResult};
+use crate::parser::error::{Error, Result};
 use crate::parser::script::{evaluate_script, ScriptInfo};
 use crate::parser::tx_index::TxDB;
 use std::ops::Deref;
@@ -43,7 +43,7 @@ pub use bitcoin::{Address, Block, BlockHash, Network, Script, ScriptBuf, Transac
 /// Extract addresses from a script public key.
 ///
 #[deprecated(since = "1.2.7", note = "use `get_addresses_from_script` instead")]
-pub fn parse_script(script_pub_key: &str) -> OpResult<ScriptInfo> {
+pub fn parse_script(script_pub_key: &str) -> Result<ScriptInfo> {
     get_addresses_from_script(script_pub_key)
 }
 
@@ -51,7 +51,7 @@ pub fn parse_script(script_pub_key: &str) -> OpResult<ScriptInfo> {
 /// Extract addresses from a script public key.
 ///
 #[inline]
-pub fn get_addresses_from_script(script_pub_key: &str) -> OpResult<ScriptInfo> {
+pub fn get_addresses_from_script(script_pub_key: &str) -> Result<ScriptInfo> {
     let script_buf = ScriptBuf::from_hex(script_pub_key)?;
     Ok(evaluate_script(script_buf.as_script(), Network::Bitcoin))
 }
@@ -102,9 +102,11 @@ impl BitcoinDB {
     /// // launch attempting to read txindex
     /// let db = BitcoinDB::new(path, true).unwrap();
     /// ```
-    pub fn new(p: &Path, tx_index: bool) -> OpResult<BitcoinDB> {
+    pub fn new(p: &Path, tx_index: bool) -> Result<BitcoinDB> {
         if !p.exists() {
-            return Err(OpError::from("data_dir does not exist"));
+            return Err(Error::BitcoinDataDirectoryDoesNotExist(
+                p.display().to_string(),
+            ));
         }
         let blk_path = p.join("blocks");
         let index_path = blk_path.join("index");
@@ -181,48 +183,44 @@ impl BitcoinDB {
     /// println!("total number of transactions found on disk : {}.", total_number_of_tx);
     /// ```
     ///
-    pub fn get_header(&self, height: usize) -> OpResult<&BlockIndexRecord> {
-        if let Some(header) = self.block_index.records.get(height) {
-            Ok(header)
-        } else {
-            Err(OpError::from("height not found"))
-        }
+    pub fn get_header(&self, height: usize) -> Result<&BlockIndexRecord> {
+        self.block_index
+            .records
+            .get(height)
+            .ok_or(Error::BlockIndexNotFound(height))
     }
 
-    ///
     /// Get block hash of a certain height.
-    ///
-    pub fn get_hash_from_height(&self, height: usize) -> OpResult<BlockHash> {
-        match self.block_index.records.get(height) {
-            None => Err(OpError::from("height not found")),
-            Some(s) => Ok(s.block_header.block_hash()),
-        }
+    pub fn get_hash_from_height(&self, height: usize) -> Result<BlockHash> {
+        self.block_index
+            .records
+            .get(height)
+            .map(|s| s.block_header.block_hash())
+            .ok_or(Error::BlockIndexNotFound(height))
     }
 
-    ///
     /// Get block height of certain hash.
     ///
     /// Note that the hash is a hex string of the block hash.
-    ///
-    pub fn get_height_from_hash(&self, hash: &BlockHash) -> OpResult<usize> {
-        match self.block_index.hash_to_height.get(hash) {
-            None => Err(OpError::from("hash not found")),
-            Some(h) => Ok(*h as usize),
-        }
+    pub fn get_height_from_hash(&self, hash: &BlockHash) -> Result<usize> {
+        self.block_index
+            .hash_to_height
+            .get(hash)
+            .map(|h| *h as usize)
+            .ok_or(Error::BlockHashNotFound(*hash))
     }
 
-    ///
     /// Get a raw block as bytes
-    ///
-    pub fn get_raw_block(&self, height: usize) -> OpResult<Vec<u8>> {
-        if let Some(index) = self.block_index.records.get(height) {
-            let blk = self
-                .blk_file
-                .read_raw_block(index.n_file, index.n_data_pos)?;
-            Ok(blk)
-        } else {
-            Err(OpError::from("height not found"))
-        }
+    pub fn get_raw_block(&self, height: usize) -> Result<Vec<u8>> {
+        let index = self
+            .block_index
+            .records
+            .get(height)
+            .ok_or(Error::BlockIndexNotFound(height))?;
+        let blk = self
+            .blk_file
+            .read_raw_block(index.n_file, index.n_data_pos)?;
+        Ok(blk)
     }
 
     ///
@@ -244,13 +242,14 @@ impl BitcoinDB {
     /// let block: SBlock = db.get_block(600000).unwrap();
     /// ```
     ///
-    pub fn get_block<T: From<Block>>(&self, height: usize) -> OpResult<T> {
-        if let Some(index) = self.block_index.records.get(height) {
-            let blk = self.blk_file.read_block(index.n_file, index.n_data_pos)?;
-            Ok(blk.into())
-        } else {
-            Err(OpError::from("height not found"))
-        }
+    pub fn get_block<T: From<Block>>(&self, height: usize) -> Result<T> {
+        let index = self
+            .block_index
+            .records
+            .get(height)
+            .ok_or(Error::BlockIndexNotFound(height))?;
+        let blk = self.blk_file.read_block(index.n_file, index.n_data_pos)?;
+        Ok(blk.into())
     }
 
     ///
@@ -284,9 +283,9 @@ impl BitcoinDB {
     /// let tx: STransaction = db.get_transaction(&txid).unwrap();
     /// ```
     ///
-    pub fn get_transaction<T: From<Transaction>>(&self, txid: &Txid) -> OpResult<T> {
+    pub fn get_transaction<T: From<Transaction>>(&self, txid: &Txid) -> Result<T> {
         if !self.tx_db.is_open() {
-            return Err(OpError::from("TxDB not open"));
+            return Err(Error::TxDbUnavailable);
         }
         // give special treatment for genesis transaction
         if self.tx_db.is_genesis_tx(txid) {
@@ -309,9 +308,9 @@ impl BitcoinDB {
     /// A transaction cannot be found using this function if it is
     /// not yet indexed using `txindex`.
     ///
-    pub fn get_height_of_transaction(&self, txid: &Txid) -> OpResult<usize> {
+    pub fn get_height_of_transaction(&self, txid: &Txid) -> Result<usize> {
         if !self.tx_db.is_open() {
-            return Err(OpError::from("TxDB not open"));
+            return Err(Error::TxDbUnavailable);
         }
         self.tx_db.get_block_height_of_tx(txid)
     }
@@ -457,9 +456,9 @@ impl BitcoinDB {
     ///
     /// Slow! For massive computation, use `db.iter_connected_block()`.
     ///
-    pub fn get_connected_block<T: ConnectedBlock>(&self, height: usize) -> OpResult<T> {
+    pub fn get_connected_block<T: ConnectedBlock>(&self, height: usize) -> Result<T> {
         if !self.tx_db.is_open() {
-            return Err(OpError::from("TxDB not open"));
+            return Err(Error::TxDbUnavailable);
         }
         let tx = self.get_block(height)?;
         T::connect(tx, &self.tx_db, &self.block_index, &self.blk_file)
@@ -483,9 +482,9 @@ impl BitcoinDB {
     ///
     /// Slow! For massive computation, use `db.iter_connected_block()`.
     ///
-    pub fn get_connected_transaction<T: ConnectedTx>(&self, txid: &Txid) -> OpResult<T> {
+    pub fn get_connected_transaction<T: ConnectedTx>(&self, txid: &Txid) -> Result<T> {
         if !self.tx_db.is_open() {
-            return Err(OpError::from("TxDB not open"));
+            return Err(Error::TxDbUnavailable);
         }
         let tx = self.get_transaction(txid)?;
         T::connect(tx, &self.tx_db, &self.block_index, &self.blk_file)

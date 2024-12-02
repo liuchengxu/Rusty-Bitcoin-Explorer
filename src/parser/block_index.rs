@@ -1,6 +1,6 @@
 //! Read block index in memory from levelDB.
 
-use crate::parser::errors::OpResult;
+use crate::parser::error::Result;
 use crate::parser::reader::BlockchainRead;
 use crate::BlockHeader;
 use bitcoin::io::Cursor;
@@ -51,7 +51,7 @@ impl BlockIndexRecord {
     /// Decode levelDB value for Block Index Record.
     ///
     /// https://github.com/bitcoin/bitcoin/blob/0903ce8dbc25d3823b03d52f6e6bff74d19e801e/src/chain.h#L377
-    fn parse(values: &[u8]) -> OpResult<Self> {
+    fn parse(values: &[u8]) -> Result<Self> {
         let mut reader = Cursor::new(values);
 
         let n_version = reader.read_varint()? as i32;
@@ -112,7 +112,7 @@ pub struct BlockIndex {
 
 impl BlockIndex {
     /// Build a collections of block index.
-    pub(crate) fn new(p: &Path) -> OpResult<BlockIndex> {
+    pub(crate) fn new(p: &Path) -> Result<BlockIndex> {
         let records = load_block_index(p)?.into_boxed_slice();
 
         // build a reverse index to lookup block height of a particular block hash.
@@ -131,7 +131,7 @@ impl BlockIndex {
 /// Load all block index in memory from leveldb (i.e. `blocks/index` path).
 ///
 /// Map from block height to block index record.
-fn load_block_index(path: &Path) -> OpResult<Vec<BlockIndexRecord>> {
+fn load_block_index(path: &Path) -> Result<Vec<BlockIndexRecord>> {
     log::debug!("Start loading block_index");
 
     let mut options = Options::new();

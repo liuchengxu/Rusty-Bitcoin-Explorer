@@ -1,5 +1,5 @@
 use crate::parser::blk_file::BlkFile;
-use crate::parser::errors::{OpError, OpResult};
+use crate::parser::error::{Error, Result};
 use crate::parser::proto::full_proto::{FBlockHeader, FTxOut};
 use crate::parser::proto::simple_proto::{SBlockHeader, STxOut};
 use crate::parser::tx_index::TxDB;
@@ -46,7 +46,7 @@ pub trait ConnectedBlock {
         tx_db: &TxDB,
         blk_index: &BlockIndex,
         blk_file: &BlkFile,
-    ) -> OpResult<Self>
+    ) -> Result<Self>
     where
         Self: Sized;
 }
@@ -88,7 +88,7 @@ pub trait ConnectedTx {
         tx_db: &TxDB,
         blk_index: &BlockIndex,
         blk_file: &BlkFile,
-    ) -> OpResult<Self>
+    ) -> Result<Self>
     where
         Self: Sized;
 }
@@ -159,7 +159,7 @@ impl ConnectedTx for FConnectedTransaction {
         tx_db: &TxDB,
         blk_index: &BlockIndex,
         blk_file: &BlkFile,
-    ) -> OpResult<Self> {
+    ) -> Result<Self> {
         let is_coinbase = tx.is_coinbase();
         Ok(FConnectedTransaction {
             version: tx.version.0,
@@ -194,7 +194,7 @@ impl ConnectedTx for SConnectedTransaction {
         tx_db: &TxDB,
         blk_index: &BlockIndex,
         blk_file: &BlkFile,
-    ) -> OpResult<Self> {
+    ) -> Result<Self> {
         let is_coinbase = tx.is_coinbase();
         Ok(SConnectedTransaction {
             txid: tx.compute_txid(),
@@ -226,7 +226,7 @@ impl ConnectedBlock for FConnectedBlock {
         tx_db: &TxDB,
         blk_index: &BlockIndex,
         blk_file: &BlkFile,
-    ) -> OpResult<Self> {
+    ) -> Result<Self> {
         let block_hash = block.header.block_hash();
         Ok(FConnectedBlock {
             header: FBlockHeader::parse(block.header, block_hash),
@@ -254,7 +254,7 @@ impl ConnectedBlock for SConnectedBlock {
         tx_db: &TxDB,
         blk_index: &BlockIndex,
         blk_file: &BlkFile,
-    ) -> OpResult<Self> {
+    ) -> Result<Self> {
         let block_hash = block.header.block_hash();
         Ok(SConnectedBlock {
             header: SBlockHeader::parse(block.header, block_hash),
@@ -272,7 +272,7 @@ fn connect_block_inputs<Tx>(
     tx_db: &TxDB,
     blk_index: &BlockIndex,
     blk_file: &BlkFile,
-) -> OpResult<Vec<Tx>>
+) -> Result<Vec<Tx>>
 where
     Tx: ConnectedTx,
 {
@@ -305,9 +305,10 @@ where
         }
         // check if any output is missing
         if outputs.len() != outpoints_count {
-            return Err(OpError::from(
-                "some outpoints aren't found, tx_index is not fully synced",
-            ));
+            return Err(Error::MissingOutputs {
+                expected: outpoints_count,
+                got: outputs.len(),
+            });
         }
         let mut tx = Tx::from(&tx);
         for o in outputs {
@@ -328,7 +329,7 @@ fn connect_tx_inputs(
     tx_db: &TxDB,
     blk_index: &BlockIndex,
     blk_file: &BlkFile,
-) -> OpResult<Vec<TxOut>> {
+) -> Result<Vec<TxOut>> {
     let connected_outputs: Vec<TxOut> = tx_in
         .par_iter()
         .filter_map(|x| connect_input(x, tx_db, blk_index, blk_file))
@@ -339,9 +340,10 @@ fn connect_tx_inputs(
 
     // some outpoints aren't found
     if received != outpoints_count {
-        Err(OpError::from(
-            format!("some outpoints aren't found, tx_index is not fully synced, (expected: {}, read: {}, txid)", outpoints_count, received).as_str(),
-        ))
+        Err(Error::MissingOutputs {
+            expected: outpoints_count,
+            got: received,
+        })
     } else {
         Ok(connected_outputs)
     }

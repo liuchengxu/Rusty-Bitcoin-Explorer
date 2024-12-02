@@ -10,28 +10,27 @@ homepage = "https://github.com/Congyuwang/Rusty-Bitcoin-Explorer"
 repository = "https://github.com/Congyuwang/Rusty-Bitcoin-Explorer"
 exclude = ["./resources"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[features]
-default = ["on-disk-utxo"]
-on-disk-utxo = ["rocksdb", "tempdir"]
-
-[dependencies]
-# TODO: https://github.com/rust-bitcoin/rust-bitcoin/pull/1847
-bitcoin = { git = "https://github.com/liuchengxu/rust-bitcoin", rev = "e38bc26da49fded5158b43b5f1cfa530bc47716e", features = ["serde"] }
-par-iter-sync = "^0.1.11"
-byteorder = "^1.4"
-serde = "^1.0"
-rayon = "^1.5"
-log = "^0.4"
-leveldb = "=0.8.6"
-num_cpus = "^1.13.0"
-db-key = "=0.0.5"
-hash_hasher = "^2.0.3"
-rocksdb = { version = "0.20.1", optional = true }
-tempdir = { version = "^0.3.7", optional = true }
-
 [lib]
 name = "bitcoin_explorer"
 crate-type = ["lib"]
 doctest = false
+
+[dependencies]
+# TODO: https://github.com/rust-bitcoin/rust-bitcoin/pull/1847
+bitcoin = { git = "https://github.com/liuchengxu/rust-bitcoin", rev = "e38bc26da49fded5158b43b5f1cfa530bc47716e", features = ["serde"] }
+byteorder = "^1.4"
+db-key = "=0.0.5"
+hash_hasher = "^2.0.3"
+leveldb = "=0.8.6"
+log = "^0.4"
+num_cpus = "^1.13.0"
+par-iter-sync = "^0.1.11"
+rayon = "^1.5"
+rocksdb = { version = "0.20.1", optional = true }
+serde = "^1.0"
+tempdir = { version = "^0.3.7", optional = true }
+thiserror = "2.0"
+
+[features]
+default = ["on-disk-utxo"]
+on-disk-utxo = ["rocksdb", "tempdir"]
