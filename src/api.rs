@@ -33,8 +33,8 @@ pub use crate::parser::block_types::compact_block::{
     CompactBlock, CompactBlockHeader, CompactTransaction, CompactTxOut,
 };
 pub use crate::parser::block_types::connected_block::{
-    ConnectedBlock, ConnectedTx, FullConnectedBlock, FullConnectedTransaction, SConnectedBlock,
-    SConnectedTransaction,
+    CompactConnectedBlock, CompactConnectedTransaction, ConnectedBlock, ConnectedTx,
+    FullConnectedBlock, FullConnectedTransaction,
 };
 pub use crate::parser::block_types::full_block::{
     FullBlock, FullBlockHeader, FullTransaction, FullTxOut,
@@ -449,7 +449,7 @@ impl BitcoinDB {
     /// A transaction cannot be found using this function if it is
     /// not yet indexed using `txindex`.
     ///
-    /// Format: `full (FullConnectedTransaction)` / `simple (SConnectedTransaction)`.
+    /// Format: `full (FullConnectedTransaction)` / `simple (CompactConnectedTransaction)`.
     ///
     /// # Caveats
     ///
@@ -466,7 +466,7 @@ impl BitcoinDB {
 
     /// Returns [`ConnectedBlockIter`] for iterating through all blocks for a given heights (excluded).
     ///
-    /// Format: `full (FullConnectedBlock)` / `simple (SConnectedBlock)`.
+    /// Format: `full (FullConnectedBlock)` / `simple (CompactConnectedBlock)`.
     ///
     /// This iterator use `unspent output` to track down the connected
     /// outputs of each outpoints.
@@ -485,7 +485,7 @@ impl BitcoinDB {
     /// # Example
     ///
     /// ```rust
-    /// use bitcoin_explorer::{BitcoinDB, FullConnectedBlock, SConnectedBlock};
+    /// use bitcoin_explorer::{BitcoinDB, FullConnectedBlock, CompactConnectedBlock};
     /// use std::path::Path;
     ///
     /// let path = Path::new("/Users/me/bitcoin");
@@ -494,7 +494,7 @@ impl BitcoinDB {
     /// let db = BitcoinDB::new(path, false).unwrap();
     ///
     /// // iterate over block from 0 to 700000, (simple format)
-    /// for block in db.connected_block_iter::<SConnectedBlock>(700000) {
+    /// for block in db.connected_block_iter::<CompactConnectedBlock>(700000) {
     ///     for tx in block.txdata {
     ///         println!("do something for this transaction");
     ///     }

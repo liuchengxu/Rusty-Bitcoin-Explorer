@@ -16,7 +16,7 @@ use std::collections::VecDeque;
 /// replaced by connected outputs.
 ///
 /// ## Implementors:
-/// - SConnectedBlock
+/// - CompactConnectedBlock
 /// - FullConnectedBlock
 pub trait ConnectedBlock {
     /// Associated output type.
@@ -78,9 +78,9 @@ pub trait ConnectedTx {
 /// Simple format of connected block.
 /// See fields for details of this struct.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
-pub struct SConnectedBlock {
+pub struct CompactConnectedBlock {
     pub header: CompactBlockHeader,
-    pub txdata: Vec<SConnectedTransaction>,
+    pub txdata: Vec<CompactConnectedTransaction>,
 }
 
 /// Full format of connected block.
@@ -94,7 +94,7 @@ pub struct FullConnectedBlock {
 /// Simple format of connected transaction.
 /// See fields for details of this struct.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
-pub struct SConnectedTransaction {
+pub struct CompactConnectedTransaction {
     pub txid: Txid,
     pub input: Vec<CompactTxOut>,
     pub output: Vec<CompactTxOut>,
@@ -115,7 +115,7 @@ impl ConnectedTx for FullConnectedTransaction {
     type TOut = FullTxOut;
 
     fn from(tx: &Transaction) -> Self {
-        FullConnectedTransaction {
+        Self {
             version: tx.version.0,
             lock_time: tx.lock_time.to_consensus_u32(),
             txid: tx.compute_txid(),
@@ -135,7 +135,7 @@ impl ConnectedTx for FullConnectedTransaction {
         blk_file: &BlkFile,
     ) -> Result<Self> {
         let is_coinbase = tx.is_coinbase();
-        Ok(FullConnectedTransaction {
+        Ok(Self {
             version: tx.version.0,
             lock_time: tx.lock_time.to_consensus_u32(),
             txid: tx.compute_txid(),
@@ -148,7 +148,7 @@ impl ConnectedTx for FullConnectedTransaction {
     }
 }
 
-impl ConnectedTx for SConnectedTransaction {
+impl ConnectedTx for CompactConnectedTransaction {
     type TOut = CompactTxOut;
 
     fn from(tx: &Transaction) -> Self {
@@ -209,8 +209,8 @@ impl ConnectedBlock for FullConnectedBlock {
     }
 }
 
-impl ConnectedBlock for SConnectedBlock {
-    type Tx = SConnectedTransaction;
+impl ConnectedBlock for CompactConnectedBlock {
+    type Tx = CompactConnectedTransaction;
 
     fn from(block_header: BlockHeader, block_hash: BlockHash) -> Self {
         Self {

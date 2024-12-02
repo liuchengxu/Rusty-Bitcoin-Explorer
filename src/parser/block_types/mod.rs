@@ -13,7 +13,7 @@
 //!
 //! Connected blocks are blocks with input replaced by referred outputs.
 //! There are two types:
-//! - `SConnectedBlock`
+//! - `CompactConnectedBlock`
 //! - `FullConnectedBlock`
 //!     Corresponding to the basic F/S Blocks.
 

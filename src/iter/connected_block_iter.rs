@@ -144,13 +144,13 @@ impl<TBlock> Iterator for ConnectedBlockIter<TBlock> {
 #[cfg(test)]
 #[cfg(feature = "on-disk-utxo")]
 mod test_empty {
-    use crate::{ConnectedBlockIter, SConnectedBlock};
+    use crate::{CompactConnectedBlock, ConnectedBlockIter};
 
     #[test]
     fn test_empty() {
         let mut empty = ConnectedBlockIter::null();
         for _ in 0..100 {
-            let b: Option<SConnectedBlock> = empty.next();
+            let b: Option<CompactConnectedBlock> = empty.next();
             assert!(b.is_none());
         }
     }

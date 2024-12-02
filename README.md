@@ -41,7 +41,7 @@ See [Rust Documentation](https://docs.rs/bitcoin-explorer/)
 
 ### Get total number of blocks and transactions available on disk
 ```rust
-use bitcoin_explorer::{BitcoinDB, FullConnectedBlock, SConnectedBlock};
+use bitcoin_explorer::{BitcoinDB, FullConnectedBlock, CompactConnectedBlock};
 use std::path::Path;
 
 fn main() {
@@ -142,7 +142,7 @@ fn main() {
 ### Iterate through all blocks with Input Addresses Found (`ConnectedBlock`)
 
 ```rust
-use bitcoin_explorer::{BitcoinDB, FullConnectedBlock, SConnectedBlock};
+use bitcoin_explorer::{BitcoinDB, FullConnectedBlock, CompactConnectedBlock};
 use std::path::Path;
 
 fn main() {
@@ -154,7 +154,7 @@ fn main() {
     let end = db.get_block_count();
 
     // iterate over all blocks found (simple connected format)
-    for block in db.connected_block_iter::<SConnectedBlock>(end) {
+    for block in db.connected_block_iter::<CompactConnectedBlock>(end) {
         for tx in block.txdata {
             println!("do something for this transaction");
         }
@@ -191,7 +191,7 @@ db.block_iter::<CompactBlock>(0, 700000)
 ### Iteration Through All Blocks (0 - 700000) With Input Addresses 
 
 ```rust
-db.connected_block_iter::<SConnectedBlock>(700000)
+db.connected_block_iter::<CompactConnectedBlock>(700000)
 ```
 
 #### Using default configuration

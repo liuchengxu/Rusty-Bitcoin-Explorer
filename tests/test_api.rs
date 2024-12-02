@@ -7,8 +7,8 @@
 mod iterator_tests {
     use bitcoin::{Block, Transaction};
     use bitcoin_explorer::{
-        BitcoinDB, CompactBlock, CompactTransaction, FullBlock, FullTransaction, SConnectedBlock,
-        SConnectedTransaction,
+        BitcoinDB, CompactBlock, CompactConnectedBlock, CompactConnectedTransaction,
+        CompactTransaction, FullBlock, FullTransaction,
     };
     use std::path::PathBuf;
 
@@ -91,7 +91,7 @@ mod iterator_tests {
         let db = get_test_db();
 
         let mut h = 0;
-        for blk in db.connected_block_iter::<SConnectedBlock>(END) {
+        for blk in db.connected_block_iter::<CompactConnectedBlock>(END) {
             // check that blocks are produced in correct order
             assert_eq!(blk.header, db.get_block::<CompactBlock>(h).unwrap().header);
             h += 1;
@@ -107,8 +107,8 @@ mod iterator_tests {
         let early_end = 100000;
 
         let mut h = 0;
-        for blk in db.connected_block_iter::<SConnectedBlock>(early_end) {
-            let blk_ref = db.get_connected_block::<SConnectedBlock>(h).unwrap();
+        for blk in db.connected_block_iter::<CompactConnectedBlock>(early_end) {
+            let blk_ref = db.get_connected_block::<CompactConnectedBlock>(h).unwrap();
             assert_eq!(blk, blk_ref);
             h += 1;
         }
@@ -122,7 +122,10 @@ mod iterator_tests {
         let break_height = 100000;
 
         let mut some_blk = None;
-        for (i, blk) in db.connected_block_iter::<SConnectedBlock>(END).enumerate() {
+        for (i, blk) in db
+            .connected_block_iter::<CompactConnectedBlock>(END)
+            .enumerate()
+        {
             some_blk = Some(blk);
             if i == break_height {
                 break;
@@ -131,7 +134,7 @@ mod iterator_tests {
         assert_eq!(
             some_blk,
             Some(
-                db.get_connected_block::<SConnectedBlock>(break_height)
+                db.get_connected_block::<CompactConnectedBlock>(break_height)
                     .unwrap()
             )
         )
@@ -143,10 +146,10 @@ mod iterator_tests {
         let db = get_test_db();
         let early_end = 100000;
 
-        for blk in db.connected_block_iter::<SConnectedBlock>(early_end) {
+        for blk in db.connected_block_iter::<CompactConnectedBlock>(early_end) {
             for tx in blk.txdata {
                 let connected_tx = db
-                    .get_connected_transaction::<SConnectedTransaction>(tx.txid)
+                    .get_connected_transaction::<CompactConnectedTransaction>(tx.txid)
                     .unwrap();
                 let unconnected_stx = db.get_transaction::<CompactTransaction>(tx.txid).unwrap();
                 let unconnected_ftx = db.get_transaction::<FullTransaction>(tx.txid).unwrap();
