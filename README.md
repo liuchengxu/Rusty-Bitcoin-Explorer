@@ -17,7 +17,7 @@ Support bitcoin MainNet, might support other networks in the future.
 
 - Query blocks based on block heights or block hash.
 - Support `tx_index=1`.
-- Find input addresses using UTXO cache (`iter_connected_block()`).
+- Find input addresses using UTXO cache (`connected_block_iter()`).
 
 ### **2. Concurrency + Iterator + Sequential Output**
 
@@ -154,7 +154,7 @@ fn main() {
     let end = db.get_block_count();
 
     // iterate over all blocks found (simple connected format)
-    for block in db.iter_connected_block::<SConnectedBlock>(end) {
+    for block in db.connected_block_iter::<SConnectedBlock>(end) {
         for tx in block.txdata {
             println!("do something for this transaction");
         }
@@ -191,7 +191,7 @@ db.iter_block::<SBlock>(0, 700000)
 ### Iteration Through All Blocks (0 - 700000) With Input Addresses 
 
 ```rust
-db.iter_connected_block::<SConnectedBlock>(700000)
+db.connected_block_iter::<SConnectedBlock>(700000)
 ```
 
 #### Using default configuration
@@ -230,7 +230,7 @@ Copyright (C) 2009-2020 The Bitcoin Core developers`.
 ### Non-Default Feature (In-Memory-UTXO cache)
 
 If you have more than 32 GB memory, you might try `default-features = false`
-for faster performance on `db.iter_connected_block()`
+for faster performance on `db.connected_block_iter()`
 ```toml
 bitcoin-explorer = { version = "^1.2", default-features = false }
 ```

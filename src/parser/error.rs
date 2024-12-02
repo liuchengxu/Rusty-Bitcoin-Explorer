@@ -7,13 +7,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("data_dir {0} does not exist")]
-    BitcoinDataDirectoryDoesNotExist(String),
+    BitcoinDataDirDoesNotExist(String),
     #[error("No blk files found!")]
     EmptyBlockFiles,
     #[error("blk file {0} not found, try to sync with Bitcoin Core")]
     BlockFileNotFound(i32),
-    #[error("block index {0} not found")]
-    BlockIndexNotFound(usize),
+    #[error("block index record {0} not found")]
+    BlockIndexRecordNotFound(usize),
     #[error("block index for {0} not found")]
     BlockHashNotFound(bitcoin::BlockHash),
     #[error("Transaction record not found for {0}")]

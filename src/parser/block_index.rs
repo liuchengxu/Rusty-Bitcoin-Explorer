@@ -112,8 +112,8 @@ pub struct BlockIndex {
 
 impl BlockIndex {
     /// Build a collections of block index.
-    pub(crate) fn new(p: &Path) -> Result<BlockIndex> {
-        let records = load_block_index(p)?.into_boxed_slice();
+    pub(crate) fn new(p: impl AsRef<Path>) -> Result<BlockIndex> {
+        let records = load_block_index(p.as_ref())?.into_boxed_slice();
 
         // build a reverse index to lookup block height of a particular block hash.
         let mut hash_to_height = HashMap::with_capacity(records.len());

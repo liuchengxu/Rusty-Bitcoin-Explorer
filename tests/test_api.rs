@@ -91,7 +91,7 @@ mod iterator_tests {
         let db = get_test_db();
 
         let mut h = 0;
-        for blk in db.iter_connected_block::<SConnectedBlock>(END) {
+        for blk in db.connected_block_iter::<SConnectedBlock>(END) {
             // check that blocks are produced in correct order
             assert_eq!(blk.header, db.get_block::<SBlock>(h).unwrap().header);
             h += 1;
@@ -107,7 +107,7 @@ mod iterator_tests {
         let early_end = 100000;
 
         let mut h = 0;
-        for blk in db.iter_connected_block::<SConnectedBlock>(early_end) {
+        for blk in db.connected_block_iter::<SConnectedBlock>(early_end) {
             let blk_ref = db.get_connected_block::<SConnectedBlock>(h).unwrap();
             assert_eq!(blk, blk_ref);
             h += 1;
@@ -122,7 +122,7 @@ mod iterator_tests {
         let break_height = 100000;
 
         let mut some_blk = None;
-        for (i, blk) in db.iter_connected_block::<SConnectedBlock>(END).enumerate() {
+        for (i, blk) in db.connected_block_iter::<SConnectedBlock>(END).enumerate() {
             some_blk = Some(blk);
             if i == break_height {
                 break;
@@ -143,7 +143,7 @@ mod iterator_tests {
         let db = get_test_db();
         let early_end = 100000;
 
-        for blk in db.iter_connected_block::<SConnectedBlock>(early_end) {
+        for blk in db.connected_block_iter::<SConnectedBlock>(early_end) {
             for tx in blk.txdata {
                 let connected_tx = db
                     .get_connected_transaction::<SConnectedTransaction>(&tx.txid)
