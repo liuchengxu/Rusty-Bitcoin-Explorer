@@ -87,16 +87,17 @@ where
         let unspent_copy = unspent.clone();
 
         #[cfg(feature = "on-disk-utxo")]
-        let output_iterator = heights
-            .into_par_iter_sync(move |height| update_unspent_cache(&unspent_copy, &db_copy, height))
-            .into_par_iter_sync(move |blk| connect_outpoints(&unspent, blk));
+        let output_iterator = heights.into_par_iter_sync(move |height| {
+            update_unspent_cache(&unspent_copy, &db_copy, height)
+        });
 
         #[cfg(not(feature = "on-disk-utxo"))]
-        let output_iterator = heights
-            .into_par_iter_sync(move |height| {
-                update_unspent_cache::<TBlock>(&unspent_copy, &db_copy, height)
-            })
-            .into_par_iter_sync(move |blk| connect_outpoints(&unspent, blk));
+        let output_iterator = heights.into_par_iter_sync(move |height| {
+            update_unspent_cache::<TBlock>(&unspent_copy, &db_copy, height)
+        });
+
+        let output_iterator =
+            output_iterator.into_par_iter_sync(move |blk| connect_outpoints(&unspent, blk));
 
         ConnectedBlockIter {
             inner: output_iterator,
