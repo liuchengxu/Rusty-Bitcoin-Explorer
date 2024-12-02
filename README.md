@@ -1,10 +1,10 @@
 # bitcoin-explorer
 
-![rust test](https://github.com/Congyuwang/Rusty-Bitcoin-Explorer/actions/workflows/rust.yml/badge.svg)
-![publish](https://github.com/Congyuwang/Rusty-Bitcoin-Explorer/actions/workflows/publish.yml/badge.svg)
-[![Crates.io](https://img.shields.io/crates/v/bitcoin-explorer.svg)](https://crates.io/crates/bitcoin-explorer/)
-![Downloads](https://img.shields.io/crates/d/bitcoin-explorer)
-[![](https://tokei.rs/b1/github/Congyuwang/Rusty-Bitcoin-Explorer)](https://github.com/Congyuwang/Rusty-Bitcoin-Explorer)
+[![Rust](https://github.com/liuchengxu/Rusty-Bitcoin-Explorer/actions/workflows/rust.yml/badge.svg)](https://github.com/liuchengxu/Rusty-Bitcoin-Explorer/actions/workflows/rust.yml)
+
+This is a fork of https://github.com/Congyuwang/Rusty-Bitcoin-Explorer for [Subcoin](https://github.com/subcoin-project/subcoin).
+
+--------------
 
 `bitcoin_explorer` is an efficient library for decoding transaction information from
 bitcoin blockchain.
