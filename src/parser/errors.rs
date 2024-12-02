@@ -1,9 +1,5 @@
 use std::convert::{self, From};
-use std::error;
-use std::fmt;
-use std::io;
-use std::string;
-use std::sync;
+use std::{error, fmt, io, string, sync};
 
 pub type OpResult<T> = Result<T, OpError>;
 

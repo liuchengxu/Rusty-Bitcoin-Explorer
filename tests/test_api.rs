@@ -78,7 +78,11 @@ mod iterator_tests {
 
         for blk in db.iter_block::<Block>(0, early_end) {
             for tx in blk.txdata {
-                assert_eq!(db.get_transaction::<Transaction>(&tx.compute_txid()).unwrap(), tx);
+                assert_eq!(
+                    db.get_transaction::<Transaction>(&tx.compute_txid())
+                        .unwrap(),
+                    tx
+                );
             }
         }
     }
