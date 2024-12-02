@@ -43,17 +43,13 @@ pub use bitcoin::blockdata::block::Header as BlockHeader;
 pub use bitcoin::hashes::hex::FromHex;
 pub use bitcoin::{Address, Block, BlockHash, Network, Script, ScriptBuf, Transaction, Txid};
 
-///
 /// Extract addresses from a script public key.
-///
 #[deprecated(since = "1.2.7", note = "use `get_addresses_from_script` instead")]
 pub fn parse_script(script_pub_key: &str) -> Result<ScriptInfo> {
     get_addresses_from_script(script_pub_key)
 }
 
-///
 /// Extract addresses from a script public key.
-///
 #[inline]
 pub fn get_addresses_from_script(script_pub_key: &str) -> Result<ScriptInfo> {
     let script_buf = ScriptBuf::from_hex(script_pub_key)?;
@@ -66,13 +62,11 @@ pub struct InnerDB {
     pub tx_db: TxDB,
 }
 
-///
 /// This is the main struct of this crate!! Click and read the doc.
 ///
 /// All queries start from initializing `BitcoinDB`.
 ///
 /// Note: This is an Arc wrap around `InnerDB`.
-///
 #[derive(Clone)]
 pub struct BitcoinDB(Arc<InnerDB>);
 

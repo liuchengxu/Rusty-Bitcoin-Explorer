@@ -96,7 +96,7 @@ impl BlkFile {
         let mut r = XorReader::new(File::open(blk_path)?, self.xor_mask);
         r.seek(SeekFrom::Start(offset as u64 - 4))?;
         let block_size = r.read_u32()?;
-        let block = r.read_u8_vec(block_size)?;
+        let block = r.read_vec_u8(block_size)?;
 
         Ok(block)
     }
