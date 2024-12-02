@@ -56,8 +56,8 @@ impl<R: Read> std::io::BufRead for XorReader<R> {
             }
             // Apply XOR mask to the buffer
             if let Some(mask) = &self.mask {
-                for i in 0..n {
-                    temp_buf[i] ^= mask[(self.pos % mask.len() as u64) as usize];
+                for i in temp_buf.iter_mut().take(n) {
+                    *i ^= mask[(self.pos % mask.len() as u64) as usize];
                     self.pos += 1;
                 }
             }

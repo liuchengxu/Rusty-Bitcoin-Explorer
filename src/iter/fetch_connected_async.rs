@@ -21,14 +21,46 @@ use std::sync::Arc;
 #[cfg(not(feature = "on-disk-utxo"))]
 use std::sync::Mutex;
 
+/// read block, update UTXO cache, return block
+#[cfg(feature = "on-disk-utxo")]
+pub(crate) fn update_unspent_cache(
+    unspent: &Arc<DB>,
+    db: &BitcoinDB,
+    height: usize,
+) -> Result<Block, ()> {
+    match db.get_block::<Block>(height) {
+        Ok(block) => {
+            let mut batch = WriteBatch::default();
+
+            // insert new transactions
+            for tx in block.txdata.iter() {
+                // clone outputs
+                let txid = tx.compute_txid();
+
+                for (n, o) in (0_u32..).zip(tx.output.iter()) {
+                    let key = txo_key(txid, n);
+                    let value = txo_to_u8(o);
+                    batch.put(key, value);
+                }
+            }
+            match unspent.write_without_wal(batch) {
+                Ok(_) => Ok(block),
+                Err(e) => {
+                    error!("failed to write UTXO to cache, error: {}", e);
+                    Err(())
+                }
+            }
+        }
+
+        Err(_) => Err(()),
+    }
+}
+
 ///
 /// read block, update UTXO cache, return block
-///
+#[cfg(not(feature = "on-disk-utxo"))]
 pub(crate) fn update_unspent_cache<TBlock>(
-    #[cfg(not(feature = "on-disk-utxo"))] unspent: &Arc<
-        Mutex<HashedMap<Txid, Arc<Mutex<VecMap<<TBlock::Tx as ConnectedTx>::TOut>>>>>,
-    >,
-    #[cfg(feature = "on-disk-utxo")] unspent: &Arc<DB>,
+    unspent: &Arc<Mutex<HashedMap<Txid, Arc<Mutex<VecMap<<TBlock::Tx as ConnectedTx>::TOut>>>>>>,
     db: &BitcoinDB,
     height: usize,
 ) -> Result<Block, ()>
@@ -36,7 +68,6 @@ where
     TBlock: ConnectedBlock,
 {
     match db.get_block::<Block>(height) {
-        #[cfg(not(feature = "on-disk-utxo"))]
         Ok(block) => {
             let mut new_unspent_cache = Vec::with_capacity(block.txdata.len());
 
@@ -67,31 +98,6 @@ where
             // if some exception happens in lower stream
             Ok(block)
         }
-
-        #[cfg(feature = "on-disk-utxo")]
-        Ok(block) => {
-            let mut batch = WriteBatch::default();
-
-            // insert new transactions
-            for tx in block.txdata.iter() {
-                // clone outputs
-                let txid = tx.compute_txid();
-
-                for (n, o) in (0_u32..).zip(tx.output.iter()) {
-                    let key = txo_key(txid, n);
-                    let value = txo_to_u8(o);
-                    batch.put(key, value);
-                }
-            }
-            match unspent.write_without_wal(batch) {
-                Ok(_) => Ok(block),
-                Err(e) => {
-                    error!("failed to write UTXO to cache, error: {}", e);
-                    Err(())
-                }
-            }
-        }
-
         Err(_) => Err(()),
     }
 }
