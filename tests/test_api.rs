@@ -33,7 +33,7 @@ mod iterator_tests {
             h += 1;
         }
         // assert that all blocks are read
-        assert_eq!(h as usize, db.get_block_count())
+        assert_eq!(h, db.get_block_count())
     }
 
     #[test]
@@ -58,14 +58,12 @@ mod iterator_tests {
         let db = get_test_db();
         let break_height = 100000;
 
-        let mut h = 0;
         let mut some_blk = None;
-        for blk in db.iter_block::<SBlock>(0, END) {
+        for (i, blk) in db.iter_block::<SBlock>(0, END).enumerate() {
             some_blk = Some(blk);
-            if h == break_height {
+            if i == break_height {
                 break;
             }
-            h += 1;
         }
         assert_eq!(some_blk, Some(db.get_block(break_height).unwrap()))
     }
@@ -99,7 +97,7 @@ mod iterator_tests {
             h += 1;
         }
         // assert that all blocks are read
-        assert_eq!(h as usize, db.get_block_count())
+        assert_eq!(h, db.get_block_count())
     }
 
     #[test]
@@ -123,14 +121,12 @@ mod iterator_tests {
         let db = get_test_db();
         let break_height = 100000;
 
-        let mut h = 0;
         let mut some_blk = None;
-        for blk in db.iter_connected_block::<SConnectedBlock>(END) {
+        for (i, blk) in db.iter_connected_block::<SConnectedBlock>(END).enumerate() {
             some_blk = Some(blk);
-            if h == break_height {
+            if i == break_height {
                 break;
             }
-            h += 1;
         }
         assert_eq!(
             some_blk,
