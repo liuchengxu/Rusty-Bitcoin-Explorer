@@ -22,7 +22,6 @@ pub enum ScriptType {
     Pay2WitnessPublicKeyHash,
     Pay2WitnessScriptHash,
     WitnessProgram,
-    Unspendable,
     NotRecognised,
 }
 
@@ -54,8 +53,6 @@ pub fn evaluate_script(script: &Script, net: Network) -> ScriptInfo {
         ScriptInfo::new(address, ScriptType::WitnessProgram)
     } else if script.is_op_return() {
         ScriptInfo::new(address, ScriptType::OpReturn)
-    } else if script.is_provably_unspendable() {
-        ScriptInfo::new(address, ScriptType::Unspendable)
     } else if is_multisig(script) {
         ScriptInfo::from_vec(multisig_addresses(script), ScriptType::Pay2MultiSig)
     } else {
@@ -247,7 +244,6 @@ impl fmt::Display for ScriptType {
             ScriptType::Pay2WitnessPublicKeyHash => write!(f, "Pay2WitnessPublicKeyHash"),
             ScriptType::Pay2WitnessScriptHash => write!(f, "Pay2WitnessScriptHash"),
             ScriptType::WitnessProgram => write!(f, "WitnessProgram"),
-            ScriptType::Unspendable => write!(f, "Unspendable"),
             ScriptType::NotRecognised => write!(f, "NotRecognised"),
         }
     }
