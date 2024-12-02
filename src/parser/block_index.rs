@@ -162,6 +162,7 @@ impl BlockIndexRecord {
     ///
     /// Decode levelDB value for Block Index Record.
     ///
+    /// https://github.com/bitcoin/bitcoin/blob/0903ce8dbc25d3823b03d52f6e6bff74d19e801e/src/chain.h#L377
     fn from(values: &[u8]) -> OpResult<Self> {
         let mut reader = Cursor::new(values);
 

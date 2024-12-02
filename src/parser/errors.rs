@@ -55,6 +55,7 @@ impl error::Error for OpError {
 pub enum OpErrorKind {
     None,
     IoError(io::Error),
+    BitcoinIoError(bitcoin::io::Error),
     Utf8Error(string::FromUtf8Error),
     RuntimeError,
     PoisonError,
@@ -65,6 +66,7 @@ impl fmt::Display for OpErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             OpErrorKind::IoError(ref err) => write!(f, "I/O Error: {}", err),
+            OpErrorKind::BitcoinIoError(ref err) => write!(f, "Bitcoin I/O Error: {}", err),
             OpErrorKind::Utf8Error(ref err) => write!(f, "Utf8 Conversion: {}", err),
             ref err @ OpErrorKind::PoisonError => write!(f, "Threading Error: {}", err),
             ref err @ OpErrorKind::SendError => write!(f, "Sync: {}", err),
@@ -129,8 +131,12 @@ impl From<bitcoin::hashes::FromSliceError> for OpError {
 }
 
 impl From<bitcoin::io::Error> for OpError {
-    fn from(_: bitcoin::io::Error) -> Self {
-        Self::from("bitcoin IO error")
+    fn from(err: bitcoin::io::Error) -> Self {
+        let message = err.to_string();
+        Self {
+            kind: OpErrorKind::BitcoinIoError(err),
+            message,
+        }
     }
 }
 

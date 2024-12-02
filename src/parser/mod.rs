@@ -22,3 +22,5 @@ pub mod proto;
 
 /// error handling
 pub mod errors;
+
+pub(crate) mod xor;

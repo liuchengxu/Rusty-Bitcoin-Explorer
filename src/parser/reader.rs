@@ -7,6 +7,8 @@ use byteorder::{ByteOrder, LittleEndian};
 use std::fs::File;
 use std::io::BufReader;
 
+use super::xor::XorReader;
+
 ///
 /// binary file read utilities.
 ///
@@ -82,3 +84,4 @@ pub trait BlockchainRead: bitcoin::io::BufRead {
 impl BlockchainRead for Cursor<&[u8]> {}
 impl BlockchainRead for Cursor<Vec<u8>> {}
 impl BlockchainRead for BufReader<File> {}
+impl BlockchainRead for XorReader<File> {}
