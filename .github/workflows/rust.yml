@@ -1,4 +1,4 @@
-name: CI
+name: Rust
 
 on:
   push:
@@ -51,7 +51,9 @@ jobs:
       run: git lfs checkout
 
     - name: Build
-      run: cargo build --verbose --release
+      run: |
+        cargo build --verbose --release
+        cargo build --verbose --release --no-default-features
 
     # TODO: fix tests
     # - name: Run tests default
