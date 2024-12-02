@@ -77,7 +77,7 @@ mod iterator_tests {
         for blk in db.block_iter::<Block>(0, early_end) {
             for tx in blk.txdata {
                 assert_eq!(
-                    db.get_transaction::<Transaction>(&tx.compute_txid())
+                    db.get_transaction::<Transaction>(tx.compute_txid())
                         .unwrap(),
                     tx
                 );
@@ -146,10 +146,10 @@ mod iterator_tests {
         for blk in db.connected_block_iter::<SConnectedBlock>(early_end) {
             for tx in blk.txdata {
                 let connected_tx = db
-                    .get_connected_transaction::<SConnectedTransaction>(&tx.txid)
+                    .get_connected_transaction::<SConnectedTransaction>(tx.txid)
                     .unwrap();
-                let unconnected_stx = db.get_transaction::<CompactTransaction>(&tx.txid).unwrap();
-                let unconnected_ftx = db.get_transaction::<FullTransaction>(&tx.txid).unwrap();
+                let unconnected_stx = db.get_transaction::<CompactTransaction>(tx.txid).unwrap();
+                let unconnected_ftx = db.get_transaction::<FullTransaction>(tx.txid).unwrap();
                 assert_eq!(connected_tx.input.len(), unconnected_stx.input.len());
                 assert_eq!(connected_tx.input.len(), unconnected_ftx.input.len());
                 assert_eq!(connected_tx, tx);

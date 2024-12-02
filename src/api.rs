@@ -263,11 +263,11 @@ impl BitcoinDB {
     /// let txid = Txid::from_hex(txid_str).unwrap();
     ///
     /// // get transactions in different formats
-    /// let tx: Transaction = db.get_transaction(&txid).unwrap();
-    /// let tx: FullTransaction = db.get_transaction(&txid).unwrap();
-    /// let tx: CompactTransaction = db.get_transaction(&txid).unwrap();
+    /// let tx: Transaction = db.get_transaction(txid).unwrap();
+    /// let tx: FullTransaction = db.get_transaction(txid).unwrap();
+    /// let tx: CompactTransaction = db.get_transaction(txid).unwrap();
     /// ```
-    pub fn get_transaction<T: From<Transaction>>(&self, txid: &Txid) -> Result<T> {
+    pub fn get_transaction<T: From<Transaction>>(&self, txid: Txid) -> Result<T> {
         if !self.tx_db.is_open() {
             return Err(Error::TxDbUnavailable);
         }
@@ -290,7 +290,7 @@ impl BitcoinDB {
     ///
     /// A transaction cannot be found using this function if it is
     /// not yet indexed using `txindex`.
-    pub fn get_height_of_transaction(&self, txid: &Txid) -> Result<usize> {
+    pub fn get_height_of_transaction(&self, txid: Txid) -> Result<usize> {
         if !self.tx_db.is_open() {
             return Err(Error::TxDbUnavailable);
         }
@@ -456,7 +456,7 @@ impl BitcoinDB {
     /// ## Performance Warning
     ///
     /// Slow! For massive computation, use `db.connected_block_iter()`.
-    pub fn get_connected_transaction<T: ConnectedTx>(&self, txid: &Txid) -> Result<T> {
+    pub fn get_connected_transaction<T: ConnectedTx>(&self, txid: Txid) -> Result<T> {
         if !self.tx_db.is_open() {
             return Err(Error::TxDbUnavailable);
         }

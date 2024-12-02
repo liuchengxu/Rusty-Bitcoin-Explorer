@@ -1,4 +1,4 @@
-//! This module defines how to parse binary data on disk to Block structs defined in proto.
+//! This module defines how to parse binary data on disk to Block structs.
 
 pub mod blk_file;
 pub mod block_index;

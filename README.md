@@ -98,9 +98,9 @@ fn main() {
     let txid = Txid::from_hex(txid_str).unwrap();
 
     // get transactions in different formats
-    let tx: Transaction = db.get_transaction(&txid).unwrap();
-    let tx: FullTransaction = db.get_transaction(&txid).unwrap();
-    let tx: CompactTransaction = db.get_transaction(&txid).unwrap();
+    let tx: Transaction = db.get_transaction(txid).unwrap();
+    let tx: FullTransaction = db.get_transaction(txid).unwrap();
+    let tx: CompactTransaction = db.get_transaction(txid).unwrap();
 }
 ```
 

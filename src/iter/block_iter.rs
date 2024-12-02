@@ -1,7 +1,6 @@
-//!
 //! View development note of connected_block_iter.rs for implementation
 //! details of block_iter.rs, which follows similar principles.
-//!
+
 use crate::api::BitcoinDB;
 use bitcoin::Block;
 use par_iter_sync::{IntoParallelIteratorSync, ParIterSync};

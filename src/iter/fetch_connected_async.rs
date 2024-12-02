@@ -10,12 +10,11 @@ mod on_disk_utxo {
     use crate::BitcoinDB;
     use bitcoin::consensus::{Decodable, Encodable};
     use bitcoin::{Block, TxOut, Txid};
-    use log::error;
     use rocksdb::{WriteBatch, DB};
     use std::sync::Arc;
 
     #[inline(always)]
-    fn txo_key(txid: Txid, n: u32) -> Vec<u8> {
+    fn txout_key(txid: Txid, n: u32) -> Vec<u8> {
         use bitcoin::hashes::Hash;
 
         let mut bytes = Vec::with_capacity(KEY_LENGTH as usize);
@@ -25,18 +24,15 @@ mod on_disk_utxo {
     }
 
     #[inline(always)]
-    fn txo_to_u8(txo: &TxOut) -> Vec<u8> {
+    fn txout_to_u8(txo: &TxOut) -> Vec<u8> {
         let mut bytes = Vec::new();
         txo.consensus_encode(&mut bytes).unwrap();
         bytes
     }
 
     #[inline(always)]
-    fn txo_from_u8(bytes: Vec<u8>) -> Option<TxOut> {
-        match TxOut::consensus_decode(&mut bytes.as_slice()) {
-            Ok(txo) => Some(txo),
-            Err(_) => None,
-        }
+    fn txout_from_u8(bytes: Vec<u8>) -> Option<TxOut> {
+        TxOut::consensus_decode(&mut bytes.as_slice()).ok()
     }
 
     /// read block, update UTXO cache, return block
@@ -45,31 +41,26 @@ mod on_disk_utxo {
         db: &BitcoinDB,
         height: usize,
     ) -> Result<Block, ()> {
-        match db.get_block::<Block>(height) {
-            Ok(block) => {
-                let mut batch = WriteBatch::default();
+        let block = db.get_block::<Block>(height).map_err(|_| ())?;
+        let mut batch = WriteBatch::default();
 
-                // insert new transactions
-                for tx in block.txdata.iter() {
-                    // clone outputs
-                    let txid = tx.compute_txid();
+        // insert new transactions
+        for tx in block.txdata.iter() {
+            // clone outputs
+            let txid = tx.compute_txid();
 
-                    for (n, o) in (0_u32..).zip(tx.output.iter()) {
-                        let key = txo_key(txid, n);
-                        let value = txo_to_u8(o);
-                        batch.put(key, value);
-                    }
-                }
-                match unspent.write_without_wal(batch) {
-                    Ok(_) => Ok(block),
-                    Err(e) => {
-                        error!("failed to write UTXO to cache, error: {}", e);
-                        Err(())
-                    }
-                }
+            for (n, o) in (0_u32..).zip(tx.output.iter()) {
+                let key = txout_key(txid, n);
+                let value = txout_to_u8(o);
+                batch.put(key, value);
             }
-
-            Err(_) => Err(()),
+        }
+        match unspent.write_without_wal(batch) {
+            Ok(_) => Ok(block),
+            Err(e) => {
+                log::error!("failed to write UTXO to cache, error: {}", e);
+                Err(())
+            }
         }
     }
 
@@ -91,7 +82,7 @@ mod on_disk_utxo {
                     continue;
                 }
 
-                keys.push(txo_key(
+                keys.push(txout_key(
                     input.previous_output.txid,
                     input.previous_output.vout,
                 ));
@@ -103,12 +94,9 @@ mod on_disk_utxo {
 
         // remove keys
         for key in keys {
-            match unspent.delete(&key) {
-                Ok(_) => {}
-                Err(e) => {
-                    error!("failed to remove key {:?}, error: {}", &key, e);
-                    return Err(());
-                }
+            if let Err(e) = unspent.delete(&key) {
+                log::error!("failed to remove key {:?}, error: {}", &key, e);
+                return Err(());
             }
         }
 
@@ -128,7 +116,7 @@ mod on_disk_utxo {
                 let prev_txo = match tx_outs.get(pos).unwrap() {
                     Ok(bytes) => match bytes {
                         None => None,
-                        Some(bytes) => txo_from_u8(bytes.to_vec()),
+                        Some(bytes) => txout_from_u8(bytes.to_vec()),
                     },
                     Err(_) => None,
                 };
@@ -137,7 +125,7 @@ mod on_disk_utxo {
                     output_tx.add_input(out.into());
                     pos += 1;
                 } else {
-                    error!("cannot find previous outpoint, bad data");
+                    log::error!("cannot find previous outpoint, bad data");
                     return Err(());
                 }
             }
@@ -154,9 +142,6 @@ mod in_mem_utxo {
     use crate::BitcoinDB;
     use bitcoin::{Block, Txid};
     use hash_hasher::HashedMap;
-    use log::error;
-    #[cfg(debug_assertions)]
-    use log::warn;
     use std::sync::{Arc, Mutex};
 
     /// read block, update UTXO cache, return block
@@ -170,39 +155,35 @@ mod in_mem_utxo {
     where
         TBlock: ConnectedBlock,
     {
-        match db.get_block::<Block>(height) {
-            Ok(block) => {
-                let mut new_unspent_cache = Vec::with_capacity(block.txdata.len());
+        let block = db.get_block::<Block>(height).map_err(|_| ())?;
+        let mut new_unspent_cache = Vec::with_capacity(block.txdata.len());
 
-                // insert new transactions
-                for tx in block.txdata.iter() {
-                    // clone outputs
-                    let txid = tx.compute_txid();
-                    let mut outs: Vec<Option<Box<<TBlock::Tx as ConnectedTx>::TOut>>> =
-                        Vec::with_capacity(tx.output.len());
-                    for o in tx.output.iter() {
-                        outs.push(Some(Box::new(o.clone().into())));
-                    }
-
-                    // update unspent cache
-                    let outs: VecMap<<TBlock::Tx as ConnectedTx>::TOut> =
-                        VecMap::from_vec(outs.into_boxed_slice());
-                    let new_unspent = Arc::new(Mutex::new(outs));
-
-                    // the new transaction should not be in unspent
-                    #[cfg(debug_assertions)]
-                    if unspent.lock().unwrap().contains_key(&txid) {
-                        warn!("found duplicate key {}", &txid);
-                    }
-
-                    new_unspent_cache.push((txid, new_unspent));
-                }
-                unspent.lock().unwrap().extend(new_unspent_cache);
-                // if some exception happens in lower stream
-                Ok(block)
+        // insert new transactions
+        for tx in block.txdata.iter() {
+            // clone outputs
+            let txid = tx.compute_txid();
+            let mut outs: Vec<Option<Box<<TBlock::Tx as ConnectedTx>::TOut>>> =
+                Vec::with_capacity(tx.output.len());
+            for o in tx.output.iter() {
+                outs.push(Some(Box::new(o.clone().into())));
             }
-            Err(_) => Err(()),
+
+            // update unspent cache
+            let outs: VecMap<<TBlock::Tx as ConnectedTx>::TOut> =
+                VecMap::from_vec(outs.into_boxed_slice());
+            let new_unspent = Arc::new(Mutex::new(outs));
+
+            // the new transaction should not be in unspent
+            #[cfg(debug_assertions)]
+            if unspent.lock().unwrap().contains_key(&txid) {
+                log::warn!("found duplicate key {}", &txid);
+            }
+
+            new_unspent_cache.push((txid, new_unspent));
         }
+        unspent.lock().unwrap().extend(new_unspent_cache);
+        // if some exception happens in lower stream
+        Ok(block)
     }
 
     /// fetch_block_connected, thread safe
@@ -234,10 +215,7 @@ mod in_mem_utxo {
                 // temporarily lock unspent
                 let prev_tx = {
                     let prev_tx = unspent.lock().unwrap();
-                    match prev_tx.get(prev_txid) {
-                        None => None,
-                        Some(tx) => Some(tx.clone()),
-                    }
+                    prev_tx.get(prev_txid).cloned()
                 };
 
                 if let Some(prev_tx) = prev_tx {
@@ -255,11 +233,11 @@ mod in_mem_utxo {
                     if let Some(out) = tx_out {
                         output_tx.add_input(*out);
                     } else {
-                        error!("cannot find previous outpoint, bad data");
+                        log::error!("cannot find previous outpoint, bad data");
                         return Err(());
                     }
                 } else {
-                    error!("cannot find previous transactions, bad data");
+                    log::error!("cannot find previous transactions, bad data");
                     return Err(());
                 }
             }

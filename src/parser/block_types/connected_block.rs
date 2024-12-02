@@ -336,7 +336,7 @@ fn connect_input(
     blk_file: &BlkFile,
 ) -> Option<TxOut> {
     let outpoint = tx_in.previous_output;
-    let tx_id = &outpoint.txid;
+    let tx_id = outpoint.txid;
     let n = outpoint.vout;
     // skip coinbase transaction
     if !is_coin_base(tx_in) {
