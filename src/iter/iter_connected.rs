@@ -2,9 +2,9 @@ use crate::api::BitcoinDB;
 use crate::iter::fetch_connected_async::{connect_outpoints, update_unspent_cache};
 #[cfg(not(feature = "on-disk-utxo"))]
 use crate::iter::util::VecMap;
-use crate::parser::proto::connected_proto::ConnectedBlock;
+use crate::parser::block_types::connected_block::ConnectedBlock;
 #[cfg(not(feature = "on-disk-utxo"))]
-use crate::parser::proto::connected_proto::ConnectedTx;
+use crate::parser::block_types::connected_block::ConnectedTx;
 #[cfg(not(feature = "on-disk-utxo"))]
 use bitcoin::Txid;
 #[cfg(not(feature = "on-disk-utxo"))]

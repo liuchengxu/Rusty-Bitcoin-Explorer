@@ -2,7 +2,7 @@
 use crate::iter::iter_connected::KEY_LENGTH;
 #[cfg(not(feature = "on-disk-utxo"))]
 use crate::iter::util::VecMap;
-use crate::parser::proto::connected_proto::{ConnectedBlock, ConnectedTx};
+use crate::parser::block_types::connected_block::{ConnectedBlock, ConnectedTx};
 use crate::BitcoinDB;
 #[cfg(feature = "on-disk-utxo")]
 use bitcoin::consensus::{Decodable, Encodable};

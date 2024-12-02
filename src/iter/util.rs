@@ -35,13 +35,13 @@ impl<T> VecMap<T> {
 #[cfg(test)]
 #[cfg(not(feature = "on-disk-utxo"))]
 mod test_vec_map {
-    use crate::api::STxOut;
+    use crate::api::CompactTxOut;
     use crate::iter::util::VecMap;
     use bitcoin::TxOut;
 
     #[test]
     fn test_vec_map() {
-        let mut vec: VecMap<STxOut> = VecMap::from_vec(
+        let mut vec: VecMap<CompactTxOut> = VecMap::from_vec(
             vec![
                 Some(Box::new(TxOut::default().into())),
                 Some(Box::new(TxOut::default().into())),

@@ -29,12 +29,16 @@ use std::sync::Arc;
 // re-exports
 pub use crate::iter::{BlockIter, ConnectedBlockIter};
 pub use crate::parser::block_index::{BlockIndex, BlockIndexRecord};
-pub use crate::parser::proto::connected_proto::{
-    ConnectedBlock, ConnectedTx, FConnectedBlock, FConnectedTransaction, SConnectedBlock,
+pub use crate::parser::block_types::compact_block::{
+    CompactBlock, CompactBlockHeader, CompactTransaction, CompactTxOut,
+};
+pub use crate::parser::block_types::connected_block::{
+    ConnectedBlock, ConnectedTx, FullConnectedBlock, FullConnectedTransaction, SConnectedBlock,
     SConnectedTransaction,
 };
-pub use crate::parser::proto::full_proto::{FBlock, FBlockHeader, FTransaction, FTxOut};
-pub use crate::parser::proto::simple_proto::{SBlock, SBlockHeader, STransaction, STxOut};
+pub use crate::parser::block_types::full_block::{
+    FullBlock, FullBlockHeader, FullTransaction, FullTxOut,
+};
 pub use bitcoin::blockdata::block::Header as BlockHeader;
 pub use bitcoin::hashes::hex::FromHex;
 pub use bitcoin::{Address, Block, BlockHash, Network, Script, ScriptBuf, Transaction, Txid};
@@ -213,11 +217,11 @@ impl BitcoinDB {
         Ok(blk)
     }
 
-    /// Get a block (in different formats (Block, FBlock, SBlock))
+    /// Get a block (in different formats (Block, FullBlock, CompactBlock))
     ///
     /// # Example
     /// ```rust
-    /// use bitcoin_explorer::{BitcoinDB, FBlock, SBlock, Block};
+    /// use bitcoin_explorer::{BitcoinDB, FullBlock, CompactBlock, Block};
     /// use std::path::Path;
     ///
     /// let path = Path::new("/Users/me/bitcoin");
@@ -227,8 +231,8 @@ impl BitcoinDB {
     ///
     /// // get block of height 600000 (in different formats)
     /// let block: Block = db.get_block(600000).unwrap();
-    /// let block: FBlock = db.get_block(600000).unwrap();
-    /// let block: SBlock = db.get_block(600000).unwrap();
+    /// let block: FullBlock = db.get_block(600000).unwrap();
+    /// let block: CompactBlock = db.get_block(600000).unwrap();
     /// ```
     pub fn get_block<T: From<Block>>(&self, height: usize) -> Result<T> {
         let index = self
@@ -251,7 +255,7 @@ impl BitcoinDB {
     ///
     /// # Example
     /// ```rust
-    /// use bitcoin_explorer::{BitcoinDB, Transaction, FTransaction, STransaction, Txid, FromHex};
+    /// use bitcoin_explorer::{BitcoinDB, Transaction, FullTransaction, CompactTransaction, Txid, FromHex};
     /// use std::path::Path;
     ///
     /// let path = Path::new("/Users/me/bitcoin");
@@ -266,8 +270,8 @@ impl BitcoinDB {
     ///
     /// // get transactions in different formats
     /// let tx: Transaction = db.get_transaction(&txid).unwrap();
-    /// let tx: FTransaction = db.get_transaction(&txid).unwrap();
-    /// let tx: STransaction = db.get_transaction(&txid).unwrap();
+    /// let tx: FullTransaction = db.get_transaction(&txid).unwrap();
+    /// let tx: CompactTransaction = db.get_transaction(&txid).unwrap();
     /// ```
     pub fn get_transaction<T: From<Transaction>>(&self, txid: &Txid) -> Result<T> {
         if !self.tx_db.is_open() {
@@ -301,7 +305,7 @@ impl BitcoinDB {
 
     /// Iterate through all blocks from `start` to `end` (excluded).
     ///
-    /// Formats: `Block` / `FBlock` / `SBlock`.
+    /// Formats: `Block` / `FullBlock` / `CompactBlock`.
     ///
     /// # Performance
     ///
@@ -320,7 +324,7 @@ impl BitcoinDB {
     /// # Example
     ///
     /// ```rust
-    /// use bitcoin_explorer::{BitcoinDB, Block, SBlock, FBlock};
+    /// use bitcoin_explorer::{BitcoinDB, Block, CompactBlock, FullBlock};
     /// use std::path::Path;
     ///
     /// let path = Path::new("/Users/me/bitcoin");
@@ -336,14 +340,14 @@ impl BitcoinDB {
     /// }
     ///
     /// // iterate over block from 600000 to 700000
-    /// for block in db.iter_block::<FBlock>(600000, 700000) {
+    /// for block in db.iter_block::<FullBlock>(600000, 700000) {
     ///     for tx in block.txdata {
     ///         println!("do something for this transaction");
     ///     }
     /// }
     ///
     /// // iterate over block from 600000 to 700000
-    /// for block in db.iter_block::<SBlock>(600000, 700000) {
+    /// for block in db.iter_block::<CompactBlock>(600000, 700000) {
     ///     for tx in block.txdata {
     ///         println!("do something for this transaction");
     ///     }
@@ -358,7 +362,7 @@ impl BitcoinDB {
 
     /// Iterate through all blocks of given heights.
     ///
-    /// Formats: `Block` / `FBlock` / `SBlock`.
+    /// Formats: `Block` / `FullBlock` / `CompactBlock`.
     ///
     /// # Performance
     ///
@@ -378,7 +382,7 @@ impl BitcoinDB {
     /// # Example
     ///
     /// ```rust
-    /// use bitcoin_explorer::{BitcoinDB, Block, FBlock, SBlock};
+    /// use bitcoin_explorer::{BitcoinDB, Block, FullBlock, CompactBlock};
     /// use std::path::Path;
     ///
     /// let path = Path::new("/Users/me/bitcoin");
@@ -396,14 +400,14 @@ impl BitcoinDB {
     /// }
     ///
     /// // iterate over simple blocks from 600000 to 700000
-    /// for block in db.iter_heights::<SBlock, _>(some_heights.clone()) {
+    /// for block in db.iter_heights::<CompactBlock, _>(some_heights.clone()) {
     ///     for tx in block.txdata {
     ///         println!("do something for this transaction");
     ///     }
     /// }
     ///
     /// // iterate over full blocks from 600000 to 700000
-    /// for block in db.iter_heights::<FBlock, _>(some_heights.clone()) {
+    /// for block in db.iter_heights::<FullBlock, _>(some_heights.clone()) {
     ///     for tx in block.txdata {
     ///         println!("do something for this transaction");
     ///     }
@@ -451,7 +455,7 @@ impl BitcoinDB {
     /// A transaction cannot be found using this function if it is
     /// not yet indexed using `txindex`.
     ///
-    /// Format: `full (FConnectedTransaction)` / `simple (SConnectedTransaction)`.
+    /// Format: `full (FullConnectedTransaction)` / `simple (SConnectedTransaction)`.
     ///
     /// # Caveats
     ///
@@ -468,7 +472,7 @@ impl BitcoinDB {
 
     /// Returns [`ConnectedBlockIter`] for iterating through all blocks for a given heights (excluded).
     ///
-    /// Format: `full (FConnectedBlock)` / `simple (SConnectedBlock)`.
+    /// Format: `full (FullConnectedBlock)` / `simple (SConnectedBlock)`.
     ///
     /// This iterator use `unspent output` to track down the connected
     /// outputs of each outpoints.
@@ -487,7 +491,7 @@ impl BitcoinDB {
     /// # Example
     ///
     /// ```rust
-    /// use bitcoin_explorer::{BitcoinDB, FConnectedBlock, SConnectedBlock};
+    /// use bitcoin_explorer::{BitcoinDB, FullConnectedBlock, SConnectedBlock};
     /// use std::path::Path;
     ///
     /// let path = Path::new("/Users/me/bitcoin");

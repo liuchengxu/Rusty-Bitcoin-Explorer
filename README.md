@@ -41,7 +41,7 @@ See [Rust Documentation](https://docs.rs/bitcoin-explorer/)
 
 ### Get total number of blocks and transactions available on disk
 ```rust
-use bitcoin_explorer::{BitcoinDB, FConnectedBlock, SConnectedBlock};
+use bitcoin_explorer::{BitcoinDB, FullConnectedBlock, SConnectedBlock};
 use std::path::Path;
 
 fn main() {
@@ -59,10 +59,10 @@ fn main() {
 
 ```
 
-### Get a block (i.e., see doc for what is full/simple format (`FBlock`/`SBlock`) )
+### Get a block (i.e., see doc for what is full/simple format (`FullBlock`/`CompactBlock`) )
 
 ```rust
-use bitcoin_explorer::{BitcoinDB, FBlock, SBlock, Block};
+use bitcoin_explorer::{BitcoinDB, FullBlock, CompactBlock, Block};
 use std::path::Path;
 
 fn main() {
@@ -73,8 +73,8 @@ fn main() {
 
     // get block of height 600000 (in different formats)
     let block: Block = db.get_block(600000).unwrap();
-    let block: FBlock = db.get_block(600000).unwrap();
-    let block: SBlock = db.get_block(600000).unwrap();
+    let block: FullBlock = db.get_block(600000).unwrap();
+    let block: CompactBlock = db.get_block(600000).unwrap();
 }
 ```
 
@@ -83,7 +83,7 @@ fn main() {
 Note: this requires building tx index with `--txindex=1` flag using Bitcoin Core.
 
 ```rust
-use bitcoin_explorer::{BitcoinDB, Transaction, FTransaction, STransaction, Txid, FromHex};
+use bitcoin_explorer::{BitcoinDB, Transaction, FullTransaction, CompactTransaction, Txid, FromHex};
 use std::path::Path;
 
 fn main() {
@@ -99,15 +99,15 @@ fn main() {
 
     // get transactions in different formats
     let tx: Transaction = db.get_transaction(&txid).unwrap();
-    let tx: FTransaction = db.get_transaction(&txid).unwrap();
-    let tx: STransaction = db.get_transaction(&txid).unwrap();
+    let tx: FullTransaction = db.get_transaction(&txid).unwrap();
+    let tx: CompactTransaction = db.get_transaction(&txid).unwrap();
 }
 ```
 
 ### Iterate through all blocks (in different formats)
 
 ```rust
-use bitcoin_explorer::{BitcoinDB, Block, SBlock, FBlock};
+use bitcoin_explorer::{BitcoinDB, Block, CompactBlock, FullBlock};
 use std::path::Path;
 
 fn main() {
@@ -124,14 +124,14 @@ fn main() {
     }
 
     // iterate over block from 1000 to end
-    for block in db.iter_block::<FBlock>(1000, db.get_block_count()) {
+    for block in db.iter_block::<FullBlock>(1000, db.get_block_count()) {
         for tx in block.txdata {
             println!("do something for this transaction");
         }
     }
 
     // iterate over block from 0 to end
-    for block in db.iter_block::<SBlock>(0, db.get_block_count()) {
+    for block in db.iter_block::<CompactBlock>(0, db.get_block_count()) {
         for tx in block.txdata {
             println!("do something for this transaction");
         }
@@ -142,7 +142,7 @@ fn main() {
 ### Iterate through all blocks with Input Addresses Found (`ConnectedBlock`)
 
 ```rust
-use bitcoin_explorer::{BitcoinDB, FConnectedBlock, SConnectedBlock};
+use bitcoin_explorer::{BitcoinDB, FullConnectedBlock, SConnectedBlock};
 use std::path::Path;
 
 fn main() {
@@ -182,7 +182,7 @@ SSD for better performance.
 ### Iteration Through All Blocks (0 - 700000)
 
 ```rust
-db.iter_block::<SBlock>(0, 700000)
+db.iter_block::<CompactBlock>(0, 700000)
 ```
 
 - Time: about 10 minutes

@@ -1,7 +1,9 @@
+//! connect outpoints of inputs to previous outputs
+
+use super::compact_block::{CompactBlockHeader, CompactTxOut};
+use super::full_block::{FullBlockHeader, FullTxOut};
 use crate::parser::blk_file::BlkFile;
 use crate::parser::error::{Error, Result};
-use crate::parser::proto::full_proto::{FBlockHeader, FTxOut};
-use crate::parser::proto::simple_proto::{SBlockHeader, STxOut};
 use crate::parser::tx_index::TxDB;
 use crate::{BlockHeader, BlockIndex};
 use bitcoin::{Block, BlockHash, Transaction, TxIn, TxOut, Txid};
@@ -10,37 +12,27 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
-///
 /// This type refer to `Block` structs where inputs are
 /// replaced by connected outputs.
 ///
 /// ## Implementors:
 /// - SConnectedBlock
-/// - FConnectedBlock
-///
+/// - FullConnectedBlock
 pub trait ConnectedBlock {
-    ///
     /// Associated output type.
-    ///
     type Tx: ConnectedTx + Send;
 
-    ///
     /// Construct a ConnectedBlock from parts of a block.
     ///
     /// Used in `iter_connected.rs`.
-    ///
     fn from(block_header: BlockHeader, block_hash: BlockHash) -> Self;
 
-    ///
     /// Add a new transaction in this block.
     ///
     /// Used in `iter_connected.rs`.
-    ///
     fn add_tx(&mut self, tx: Self::Tx);
 
-    ///
     /// Construct a ConnectedBlock and connect the transactions.
-    ///
     fn connect(
         block: Block,
         tx_db: &TxDB,
@@ -51,38 +43,28 @@ pub trait ConnectedBlock {
         Self: Sized;
 }
 
-///
 /// This type refer to `Transaction` structs where inputs are
 /// replaced by connected outputs.
 ///
 /// ## Implementors:
-/// - STransaction
-/// - FTransaction
-///
+/// - CompactTransaction
+/// - FullTransaction
 pub trait ConnectedTx {
-    ///
     /// Associated output type.
-    ///
     type TOut: 'static + From<TxOut> + Send;
 
-    ///
     /// Construct a ConnectedTx from Transaction without blank inputs.
     ///
     /// This function is used in `iter_connected.rs`.
-    ///
     fn from(tx: &Transaction) -> Self;
 
-    ///
     /// Add a input to this ConnectedTx.
     ///
     /// This function is used in `iter_connected.rs`.
-    ///
     fn add_input(&mut self, input: Self::TOut);
 
-    ///
     /// Build ConnectedTx from Tx,
     /// and attach inputs to this ConnectedTx using tx-index.
-    ///
     fn connect(
         tx: Transaction,
         tx_db: &TxDB,
@@ -93,55 +75,47 @@ pub trait ConnectedTx {
         Self: Sized;
 }
 
-///
 /// Simple format of connected block.
 /// See fields for details of this struct.
-///
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct SConnectedBlock {
-    pub header: SBlockHeader,
+    pub header: CompactBlockHeader,
     pub txdata: Vec<SConnectedTransaction>,
 }
 
-///
 /// Full format of connected block.
 /// See fields for details of this struct.
-///
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
-pub struct FConnectedBlock {
-    pub header: FBlockHeader,
-    pub txdata: Vec<FConnectedTransaction>,
+pub struct FullConnectedBlock {
+    pub header: FullBlockHeader,
+    pub txdata: Vec<FullConnectedTransaction>,
 }
 
-///
 /// Simple format of connected transaction.
 /// See fields for details of this struct.
-///
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct SConnectedTransaction {
     pub txid: Txid,
-    pub input: Vec<STxOut>,
-    pub output: Vec<STxOut>,
+    pub input: Vec<CompactTxOut>,
+    pub output: Vec<CompactTxOut>,
 }
 
-///
 /// Full format of connected transaction.
 /// See fields for details of this struct.
-///
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
-pub struct FConnectedTransaction {
+pub struct FullConnectedTransaction {
     pub version: i32,
     pub lock_time: u32,
     pub txid: Txid,
-    pub input: Vec<FTxOut>,
-    pub output: Vec<FTxOut>,
+    pub input: Vec<FullTxOut>,
+    pub output: Vec<FullTxOut>,
 }
 
-impl ConnectedTx for FConnectedTransaction {
-    type TOut = FTxOut;
+impl ConnectedTx for FullConnectedTransaction {
+    type TOut = FullTxOut;
 
     fn from(tx: &Transaction) -> Self {
-        FConnectedTransaction {
+        FullConnectedTransaction {
             version: tx.version.0,
             lock_time: tx.lock_time.to_consensus_u32(),
             txid: tx.compute_txid(),
@@ -161,7 +135,7 @@ impl ConnectedTx for FConnectedTransaction {
         blk_file: &BlkFile,
     ) -> Result<Self> {
         let is_coinbase = tx.is_coinbase();
-        Ok(FConnectedTransaction {
+        Ok(FullConnectedTransaction {
             version: tx.version.0,
             lock_time: tx.lock_time.to_consensus_u32(),
             txid: tx.compute_txid(),
@@ -175,10 +149,10 @@ impl ConnectedTx for FConnectedTransaction {
 }
 
 impl ConnectedTx for SConnectedTransaction {
-    type TOut = STxOut;
+    type TOut = CompactTxOut;
 
     fn from(tx: &Transaction) -> Self {
-        SConnectedTransaction {
+        Self {
             txid: tx.compute_txid(),
             input: Vec::new(),
             output: tx.output.clone().into_iter().map(|x| x.into()).collect(),
@@ -196,7 +170,7 @@ impl ConnectedTx for SConnectedTransaction {
         blk_file: &BlkFile,
     ) -> Result<Self> {
         let is_coinbase = tx.is_coinbase();
-        Ok(SConnectedTransaction {
+        Ok(Self {
             txid: tx.compute_txid(),
             input: connect_tx_inputs(&tx.input, is_coinbase, tx_db, blk_index, blk_file)?
                 .into_iter()
@@ -207,12 +181,12 @@ impl ConnectedTx for SConnectedTransaction {
     }
 }
 
-impl ConnectedBlock for FConnectedBlock {
-    type Tx = FConnectedTransaction;
+impl ConnectedBlock for FullConnectedBlock {
+    type Tx = FullConnectedTransaction;
 
     fn from(block_header: BlockHeader, block_hash: BlockHash) -> Self {
-        FConnectedBlock {
-            header: FBlockHeader::parse(block_header, block_hash),
+        Self {
+            header: FullBlockHeader::parse(block_header, block_hash),
             txdata: Vec::new(),
         }
     }
@@ -228,8 +202,8 @@ impl ConnectedBlock for FConnectedBlock {
         blk_file: &BlkFile,
     ) -> Result<Self> {
         let block_hash = block.header.block_hash();
-        Ok(FConnectedBlock {
-            header: FBlockHeader::parse(block.header, block_hash),
+        Ok(Self {
+            header: FullBlockHeader::parse(block.header, block_hash),
             txdata: connect_block_inputs(block.txdata, tx_db, blk_index, blk_file)?,
         })
     }
@@ -239,8 +213,8 @@ impl ConnectedBlock for SConnectedBlock {
     type Tx = SConnectedTransaction;
 
     fn from(block_header: BlockHeader, block_hash: BlockHash) -> Self {
-        SConnectedBlock {
-            header: SBlockHeader::parse(block_header, block_hash),
+        Self {
+            header: CompactBlockHeader::parse(block_header, block_hash),
             txdata: Vec::new(),
         }
     }
@@ -256,16 +230,14 @@ impl ConnectedBlock for SConnectedBlock {
         blk_file: &BlkFile,
     ) -> Result<Self> {
         let block_hash = block.header.block_hash();
-        Ok(SConnectedBlock {
-            header: SBlockHeader::parse(block.header, block_hash),
+        Ok(Self {
+            header: CompactBlockHeader::parse(block.header, block_hash),
             txdata: connect_block_inputs(block.txdata, tx_db, blk_index, blk_file)?,
         })
     }
 }
 
-///
 /// This function is used for connecting transaction inputs for a single block.
-///
 #[inline]
 fn connect_block_inputs<Tx>(
     transactions: Vec<Transaction>,
