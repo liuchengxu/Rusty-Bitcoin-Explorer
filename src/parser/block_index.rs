@@ -1,3 +1,5 @@
+//! Read block index in memory from levelDB.
+
 use crate::parser::errors::OpResult;
 use crate::parser::reader::BlockchainRead;
 use crate::BlockHeader;

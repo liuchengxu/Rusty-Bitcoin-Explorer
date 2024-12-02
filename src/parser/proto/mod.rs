@@ -1,3 +1,4 @@
+//! This module defines various formats of blockchain data representation.
 //!
 //! ## Basic Block Types
 //!
@@ -14,8 +15,7 @@
 //! There are two types:
 //! - `SConnectedBlock`
 //! - `FConnectedBlock`
-//! Corresponding to the basic F/S Blocks.
-//!
+//!     Corresponding to the basic F/S Blocks.
 
 /// connect outpoints of inputs to previous outputs
 pub mod connected_proto;

@@ -1,3 +1,6 @@
+//! Define binary file readers.
+
+use super::xor::XorReader;
 use crate::parser::errors::OpResult;
 use crate::BlockHeader;
 use bitcoin::consensus::Decodable;
@@ -7,11 +10,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use std::fs::File;
 use std::io::BufReader;
 
-use super::xor::XorReader;
-
-///
-/// binary file read utilities.
-///
+/// Binary file read utilities.
 pub trait BlockchainRead: bitcoin::io::BufRead {
     #[inline]
     fn read_varint(&mut self) -> OpResult<usize> {

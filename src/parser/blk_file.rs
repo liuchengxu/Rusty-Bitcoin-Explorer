@@ -1,3 +1,5 @@
+//! Read transactions and blocks from blk.dat files.
+
 use crate::parser::errors::{OpError, OpErrorKind, OpResult};
 use crate::parser::reader::BlockchainRead;
 use crate::parser::xor::{XorReader, XOR_MASK_LEN};

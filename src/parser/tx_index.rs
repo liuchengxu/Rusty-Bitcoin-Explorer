@@ -1,3 +1,5 @@
+//! On disk transaction index database
+
 use crate::parser::block_index::BlockIndex;
 use crate::parser::errors::{OpError, OpResult};
 use crate::parser::reader::BlockchainRead;
