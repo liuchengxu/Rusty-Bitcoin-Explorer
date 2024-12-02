@@ -1,6 +1,6 @@
 //!
-//! View development note of iter_connected.rs for implementation
-//! details of iter_block.rs, which follows similar principles.
+//! View development note of connected_block_iter.rs for implementation
+//! details of block_iter.rs, which follows similar principles.
 //!
 use crate::api::BitcoinDB;
 use bitcoin::Block;
@@ -19,20 +19,15 @@ where
         <T as IntoIterator>::IntoIter: Send + 'static,
     {
         let db_ref = db.clone();
-        BlockIter(
-            heights.into_par_iter_sync(move |h| match db_ref.get_block::<TBlock>(h) {
-                Ok(blk) => Ok(blk),
-                Err(_) => Err(()),
-            }),
-        )
+        Self(heights.into_par_iter_sync(move |h| db_ref.get_block::<TBlock>(h).map_err(|_| ())))
     }
 
     /// the worker threads are dispatched in this `new` constructor!
     pub fn from_range(db: &BitcoinDB, start: usize, end: usize) -> Self {
         if end <= start {
-            BlockIter::new(db, Vec::new())
+            Self::new(db, Vec::new())
         } else {
-            BlockIter::new(db, start..end)
+            Self::new(db, start..end)
         }
     }
 }

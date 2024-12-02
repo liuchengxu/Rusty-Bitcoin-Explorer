@@ -2,7 +2,7 @@
 
 [![Rust](https://github.com/liuchengxu/Rusty-Bitcoin-Explorer/actions/workflows/rust.yml/badge.svg)](https://github.com/liuchengxu/Rusty-Bitcoin-Explorer/actions/workflows/rust.yml)
 
-This is a fork of https://github.com/Congyuwang/Rusty-Bitcoin-Explorer for [Subcoin](https://github.com/subcoin-project/subcoin).
+This is a fork of https://github.com/Congyuwang/Rusty-Bitcoin-Explorer primarily for supporting [Subcoin](https://github.com/subcoin-project/subcoin).
 
 --------------
 
@@ -117,21 +117,21 @@ fn main() {
     let db = BitcoinDB::new(path, false).unwrap();
 
     // iterate over block from 0 to 1000
-    for block in db.iter_block::<Block>(0, 1000) {
+    for block in db.block_iter::<Block>(0, 1000) {
         for tx in block.txdata {
             println!("do something for this transaction");
         }
     }
 
     // iterate over block from 1000 to end
-    for block in db.iter_block::<FullBlock>(1000, db.get_block_count()) {
+    for block in db.block_iter::<FullBlock>(1000, db.get_block_count()) {
         for tx in block.txdata {
             println!("do something for this transaction");
         }
     }
 
     // iterate over block from 0 to end
-    for block in db.iter_block::<CompactBlock>(0, db.get_block_count()) {
+    for block in db.block_iter::<CompactBlock>(0, db.get_block_count()) {
         for tx in block.txdata {
             println!("do something for this transaction");
         }
@@ -182,7 +182,7 @@ SSD for better performance.
 ### Iteration Through All Blocks (0 - 700000)
 
 ```rust
-db.iter_block::<CompactBlock>(0, 700000)
+db.block_iter::<CompactBlock>(0, 700000)
 ```
 
 - Time: about 10 minutes

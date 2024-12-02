@@ -108,11 +108,6 @@ pub trait BlockchainRead: bitcoin::io::BufRead {
     }
 }
 
-/// Implementations of the `BlockchainRead` trait for various types.
-///
-/// These implementations allow for reading blockchain data from sources like `Cursor` (in-memory),
-/// `BufReader<File>` (file), and `XorReader<File>` (with XOR transformation).
-
 impl BlockchainRead for Cursor<&[u8]> {}
 impl BlockchainRead for Cursor<Vec<u8>> {}
 impl BlockchainRead for BufReader<File> {}

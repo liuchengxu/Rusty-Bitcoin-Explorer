@@ -27,7 +27,7 @@ mod iterator_tests {
         let db = get_test_db();
 
         let mut h = 0;
-        for blk in db.iter_block::<CompactBlock>(0, END) {
+        for blk in db.block_iter::<CompactBlock>(0, END) {
             let blk_ref = db.get_block::<CompactBlock>(h).unwrap();
             assert_eq!(blk, blk_ref);
             h += 1;
@@ -44,7 +44,7 @@ mod iterator_tests {
         let early_end = 100000;
 
         let mut h = start;
-        for blk in db.iter_block::<CompactBlock>(start, early_end) {
+        for blk in db.block_iter::<CompactBlock>(start, early_end) {
             let blk_ref = db.get_block::<CompactBlock>(h).unwrap();
             assert_eq!(blk, blk_ref);
             h += 1;
@@ -59,7 +59,7 @@ mod iterator_tests {
         let break_height = 100000;
 
         let mut some_blk = None;
-        for (i, blk) in db.iter_block::<CompactBlock>(0, END).enumerate() {
+        for (i, blk) in db.block_iter::<CompactBlock>(0, END).enumerate() {
             some_blk = Some(blk);
             if i == break_height {
                 break;
@@ -74,7 +74,7 @@ mod iterator_tests {
         let db = get_test_db();
         let early_end = 100000;
 
-        for blk in db.iter_block::<Block>(0, early_end) {
+        for blk in db.block_iter::<Block>(0, early_end) {
             for tx in blk.txdata {
                 assert_eq!(
                     db.get_transaction::<Transaction>(&tx.compute_txid())
@@ -162,11 +162,11 @@ mod iterator_tests {
     fn test_coinbase_input() {
         let db = get_test_db();
 
-        for blk in db.iter_block::<CompactBlock>(0, END) {
+        for blk in db.block_iter::<CompactBlock>(0, END) {
             assert_eq!(blk.txdata.first().unwrap().input.len(), 0);
         }
 
-        for blk in db.iter_block::<FullBlock>(0, END) {
+        for blk in db.block_iter::<FullBlock>(0, END) {
             assert_eq!(blk.txdata.first().unwrap().input.len(), 0);
         }
     }

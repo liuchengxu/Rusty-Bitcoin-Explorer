@@ -24,12 +24,12 @@ pub trait ConnectedBlock {
 
     /// Construct a ConnectedBlock from parts of a block.
     ///
-    /// Used in `iter_connected.rs`.
+    /// Used in `connected_block_iter.rs`.
     fn from(block_header: BlockHeader, block_hash: BlockHash) -> Self;
 
     /// Add a new transaction in this block.
     ///
-    /// Used in `iter_connected.rs`.
+    /// Used in `connected_block_iter.rs`.
     fn add_tx(&mut self, tx: Self::Tx);
 
     /// Construct a ConnectedBlock and connect the transactions.
@@ -55,12 +55,12 @@ pub trait ConnectedTx {
 
     /// Construct a ConnectedTx from Transaction without blank inputs.
     ///
-    /// This function is used in `iter_connected.rs`.
+    /// This function is used in `connected_block_iter.rs`.
     fn from(tx: &Transaction) -> Self;
 
     /// Add a input to this ConnectedTx.
     ///
-    /// This function is used in `iter_connected.rs`.
+    /// This function is used in `connected_block_iter.rs`.
     fn add_input(&mut self, input: Self::TOut);
 
     /// Build ConnectedTx from Tx,

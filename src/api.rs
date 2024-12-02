@@ -327,27 +327,27 @@ impl BitcoinDB {
     /// let db = BitcoinDB::new(path, false).unwrap();
     ///
     /// // iterate over block from 600000 to 700000
-    /// for block in db.iter_block::<Block>(600000, 700000) {
+    /// for block in db.block_iter::<Block>(600000, 700000) {
     ///     for tx in block.txdata {
     ///         println!("do something for this transaction");
     ///     }
     /// }
     ///
     /// // iterate over block from 600000 to 700000
-    /// for block in db.iter_block::<FullBlock>(600000, 700000) {
+    /// for block in db.block_iter::<FullBlock>(600000, 700000) {
     ///     for tx in block.txdata {
     ///         println!("do something for this transaction");
     ///     }
     /// }
     ///
     /// // iterate over block from 600000 to 700000
-    /// for block in db.iter_block::<CompactBlock>(600000, 700000) {
+    /// for block in db.block_iter::<CompactBlock>(600000, 700000) {
     ///     for tx in block.txdata {
     ///         println!("do something for this transaction");
     ///     }
     /// }
     /// ```
-    pub fn iter_block<T>(&self, start: usize, end: usize) -> BlockIter<T>
+    pub fn block_iter<T>(&self, start: usize, end: usize) -> BlockIter<T>
     where
         T: From<Block> + Send + 'static,
     {
