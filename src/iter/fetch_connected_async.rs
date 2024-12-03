@@ -24,15 +24,10 @@ mod on_disk_utxo {
     }
 
     #[inline(always)]
-    fn txout_to_u8(txo: &TxOut) -> Vec<u8> {
+    fn encode_txout(txo: &TxOut) -> Vec<u8> {
         let mut bytes = Vec::new();
         txo.consensus_encode(&mut bytes).unwrap();
         bytes
-    }
-
-    #[inline(always)]
-    fn txout_from_u8(bytes: Vec<u8>) -> Option<TxOut> {
-        TxOut::consensus_decode(&mut bytes.as_slice()).ok()
     }
 
     /// read block, update UTXO cache, return block
@@ -51,7 +46,7 @@ mod on_disk_utxo {
 
             for (n, o) in (0_u32..).zip(tx.output.iter()) {
                 let key = txout_key(txid, n);
-                let value = txout_to_u8(o);
+                let value = encode_txout(o);
                 batch.put(key, value);
             }
         }
@@ -115,7 +110,7 @@ mod on_disk_utxo {
                 }
 
                 let prev_txo = match tx_outs.get(pos).unwrap() {
-                    Ok(Some(bytes)) => txout_from_u8(bytes.to_vec()),
+                    Ok(Some(bytes)) => TxOut::consensus_decode(&mut bytes.as_slice()).ok(),
                     Ok(None) => None,
                     Err(_) => None,
                 };

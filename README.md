@@ -4,6 +4,10 @@
 
 This is a fork of https://github.com/Congyuwang/Rusty-Bitcoin-Explorer primarily for supporting [Subcoin](https://github.com/subcoin-project/subcoin).
 
+Main fork changes:
+
+- Support Bitcoin Core 28.
+
 --------------
 
 `bitcoin_explorer` is an efficient library for decoding transaction information from

@@ -1,5 +1,7 @@
 use crate::api::BitcoinDB;
 use crate::iter::fetch_connected_async::{connect_outpoints, update_unspent_cache};
+#[cfg(not(feature = "on-disk-utxo"))]
+use crate::iter::util::VecMap;
 use crate::parser::block_types::connected_block::ConnectedBlock;
 #[cfg(not(feature = "on-disk-utxo"))]
 use crate::parser::block_types::connected_block::ConnectedTx;
@@ -52,9 +54,7 @@ type InMemoryUtxoCache<B> = Arc<
     Mutex<
         hash_hasher::HashedMap<
             bitcoin::Txid,
-            Arc<
-                Mutex<crate::iter::util::VecMap<<<B as ConnectedBlock>::Tx as ConnectedTx>::TxOut>>,
-            >,
+            Arc<Mutex<VecMap<<<B as ConnectedBlock>::Tx as ConnectedTx>::TxOut>>>,
         >,
     >,
 >;
@@ -65,9 +65,6 @@ where
 {
     /// the worker threads are dispatched in this `new` constructor!
     pub fn new(db: &BitcoinDB, end: usize) -> Self {
-        #[cfg(not(feature = "on-disk-utxo"))]
-        let unspent: InMemoryUtxoCache<B> = Arc::new(Mutex::new(hash_hasher::HashedMap::default()));
-
         #[cfg(feature = "on-disk-utxo")]
         let (cache_dir, unspent) = {
             let cache_dir = {
@@ -85,6 +82,9 @@ where
                 return Self::null();
             }
         };
+
+        #[cfg(not(feature = "on-disk-utxo"))]
+        let unspent: InMemoryUtxoCache<B> = Arc::new(Mutex::new(hash_hasher::HashedMap::default()));
 
         // all tasks
         let heights = 0..end;
