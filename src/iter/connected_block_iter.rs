@@ -54,24 +54,26 @@ fn create_db(path: impl AsRef<std::path::Path>) -> Option<DB> {
 }
 
 /// iterate through blocks, and connecting outpoints.
-pub struct ConnectedBlockIter<TBlock> {
-    inner: ParIterSync<TBlock>,
+pub struct ConnectedBlockIter<B> {
+    inner: ParIterSync<B>,
     #[cfg(feature = "on-disk-utxo")]
     #[allow(dead_code)]
     cache: Option<TempDir>,
 }
 
-impl<TBlock> ConnectedBlockIter<TBlock>
+#[cfg(not(feature = "on-disk-utxo"))]
+pub type InMemoryUtxoCache<B> = Arc<
+    Mutex<HashedMap<Txid, Arc<Mutex<VecMap<<<B as ConnectedBlock>::Tx as ConnectedTx>::TxOut>>>>>,
+>;
+
+impl<B> ConnectedBlockIter<B>
 where
-    TBlock: ConnectedBlock + Send + 'static,
+    B: ConnectedBlock + Send + 'static,
 {
     /// the worker threads are dispatched in this `new` constructor!
     pub fn new(db: &BitcoinDB, end: usize) -> Self {
-        // UTXO cache
         #[cfg(not(feature = "on-disk-utxo"))]
-        let unspent: Arc<
-            Mutex<HashedMap<Txid, Arc<Mutex<VecMap<<TBlock::Tx as ConnectedTx>::TOut>>>>>,
-        > = Arc::new(Mutex::new(HashedMap::default()));
+        let unspent: InMemoryUtxoCache<B> = Arc::new(Mutex::new(HashedMap::default()));
 
         #[cfg(feature = "on-disk-utxo")]
         let (cache_dir, unspent) = {
@@ -107,9 +109,8 @@ where
             let db = db.clone();
             let unspent = unspent.clone();
 
-            heights.into_par_iter_sync(move |height| {
-                update_unspent_cache::<TBlock>(&unspent, &db, height)
-            })
+            heights
+                .into_par_iter_sync(move |height| update_unspent_cache::<B>(&unspent, &db, height))
         };
 
         let output_iterator =
@@ -133,8 +134,8 @@ where
     }
 }
 
-impl<TBlock> Iterator for ConnectedBlockIter<TBlock> {
-    type Item = TBlock;
+impl<B> Iterator for ConnectedBlockIter<B> {
+    type Item = B;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()

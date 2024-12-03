@@ -15,7 +15,7 @@ use std::str::FromStr;
 
 const GENESIS_TXID: &str = "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b";
 
-/// Records transaction storage on disk
+/// Transaction record stored on disk.
 pub struct TransactionRecord {
     pub txid: Txid,
     pub n_file: i32,
@@ -35,65 +35,48 @@ impl TransactionRecord {
     }
 }
 
-/// tx-index: looking up transaction position using txid.
+/// Responsible for looking up transaction position using txid.
 ///
-/// This is possible if Bitcoin Core has `txindex=1`.
+/// This requires setting `txindex=1` in Bitcoin Core.
 pub struct TxDB {
-    db: Option<Database<TxKey>>,
+    db: Database<TxKey>,
     // used for reverse looking up to block height
     file_pos_to_height: BTreeMap<(i32, u32), i32>,
     genesis_txid: Txid,
 }
 
 impl TxDB {
-    /// initialize TxDB for transaction queries
-    pub fn new(path: &Path, blk_index: &BlockIndex) -> TxDB {
-        let try_open_db = || -> Option<Database<TxKey>> {
-            if !path.exists() {
-                log::warn!("Failed to open tx_index DB: tx_index not built");
-                return None;
-            }
-            let options = Options::new();
-            match Database::open(path, options) {
-                Ok(db) => {
-                    log::debug! {"Successfully opened tx_index DB!"}
-                    Some(db)
-                }
-                Err(e) => {
-                    log::warn!("Failed to open tx_index DB: {:?}", e);
-                    None
-                }
-            }
-        };
-
-        if let Some(db) = try_open_db() {
-            let file_pos_to_height: BTreeMap<_, _> = blk_index
-                .records
-                .iter()
-                .map(|b| ((b.n_file, b.n_data_pos), b.n_height))
-                .collect();
-            Self {
-                db: Some(db),
-                file_pos_to_height,
-                genesis_txid: Txid::from_str(GENESIS_TXID).unwrap(),
-            }
-        } else {
-            Self::null()
+    /// Initialize TxDB for transaction queries.
+    pub fn open(path: &Path, blk_index: &BlockIndex) -> Option<Self> {
+        if !path.exists() {
+            log::warn!(
+                "Failed to open tx_index DB: {} does not exist",
+                path.display()
+            );
+            return None;
         }
-    }
 
-    #[inline]
-    pub(crate) fn null() -> Self {
-        Self {
-            db: None,
-            file_pos_to_height: BTreeMap::new(),
-            genesis_txid: Txid::from_str(GENESIS_TXID).unwrap(),
+        let options = Options::new();
+
+        match Database::open(path, options) {
+            Ok(db) => {
+                log::debug! {"Successfully opened tx_index DB!"}
+                let file_pos_to_height: BTreeMap<_, _> = blk_index
+                    .records
+                    .iter()
+                    .map(|b| ((b.n_file, b.n_data_pos), b.n_height))
+                    .collect();
+                Some(Self {
+                    db,
+                    file_pos_to_height,
+                    genesis_txid: Txid::from_str(GENESIS_TXID).unwrap(),
+                })
+            }
+            Err(e) => {
+                log::warn!("Failed to open tx_index DB: {:?}", e);
+                None
+            }
         }
-    }
-
-    #[inline]
-    pub(crate) fn is_open(&self) -> bool {
-        self.db.is_some()
     }
 
     /// genesis tx is not included in UTXO because of Bitcoin Core Bug
@@ -104,13 +87,12 @@ impl TxDB {
 
     /// note that this function cannot find genesis block, which needs special treatment
     pub(crate) fn get_tx_record(&self, txid: Txid) -> Result<TransactionRecord> {
-        let db = self.db.as_ref().ok_or(Error::TxDbUnavailable)?;
         let inner = txid.as_byte_array();
         let mut key = Vec::with_capacity(inner.len() + 1);
         key.push(b't');
         key.extend(inner);
         let key = TxKey { key };
-        let value = db.get(ReadOptions::new(), &key)?;
+        let value = self.db.get(ReadOptions::new(), &key)?;
         if let Some(value) = value {
             Ok(TransactionRecord::parse(&key.key[1..], value.as_slice())?)
         } else {
@@ -118,7 +100,7 @@ impl TxDB {
         }
     }
 
-    pub(crate) fn get_block_height_of_tx(&self, txid: Txid) -> Result<usize> {
+    pub(crate) fn get_block_height(&self, txid: Txid) -> Result<usize> {
         if self.is_genesis_tx(txid) {
             return Ok(0);
         }

@@ -1,5 +1,6 @@
 use bitcoin::Txid;
 use std::convert::{self, From};
+use std::path::PathBuf;
 use std::{string, sync};
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -7,7 +8,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("data_dir {0} does not exist")]
-    BitcoinDataDirDoesNotExist(String),
+    BitcoinDataDirDoesNotExist(PathBuf),
     #[error("No blk files found!")]
     EmptyBlockFiles,
     #[error("blk file {0} not found, try to sync with Bitcoin Core")]
@@ -22,7 +23,7 @@ pub enum Error {
     MissingOutputs { expected: usize, got: usize },
     #[error("failed to find height for transaction: {0}")]
     CannotFindHeightForTransaction(Txid),
-    #[error("TxDB not open")]
+    #[error("TxDB is not enabled or failed to be opened")]
     TxDbUnavailable,
     #[error(transparent)]
     Io(#[from] std::io::Error),

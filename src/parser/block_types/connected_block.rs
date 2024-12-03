@@ -51,7 +51,7 @@ pub trait ConnectedBlock {
 /// - FullTransaction
 pub trait ConnectedTx {
     /// Associated output type.
-    type TOut: 'static + From<TxOut> + Send;
+    type TxOut: 'static + From<TxOut> + Send;
 
     /// Construct a ConnectedTx from Transaction without blank inputs.
     ///
@@ -61,7 +61,7 @@ pub trait ConnectedTx {
     /// Add a input to this ConnectedTx.
     ///
     /// This function is used in `connected_block_iter.rs`.
-    fn add_input(&mut self, input: Self::TOut);
+    fn add_input(&mut self, input: Self::TxOut);
 
     /// Build ConnectedTx from Tx,
     /// and attach inputs to this ConnectedTx using tx-index.
@@ -76,7 +76,6 @@ pub trait ConnectedTx {
 }
 
 /// Simple format of connected block.
-/// See fields for details of this struct.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct CompactConnectedBlock {
     pub header: CompactBlockHeader,
@@ -84,7 +83,6 @@ pub struct CompactConnectedBlock {
 }
 
 /// Full format of connected block.
-/// See fields for details of this struct.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct FullConnectedBlock {
     pub header: FullBlockHeader,
@@ -112,7 +110,7 @@ pub struct FullConnectedTransaction {
 }
 
 impl ConnectedTx for FullConnectedTransaction {
-    type TOut = FullTxOut;
+    type TxOut = FullTxOut;
 
     fn from(tx: &Transaction) -> Self {
         Self {
@@ -124,7 +122,7 @@ impl ConnectedTx for FullConnectedTransaction {
         }
     }
 
-    fn add_input(&mut self, input: Self::TOut) {
+    fn add_input(&mut self, input: Self::TxOut) {
         self.input.push(input);
     }
 
@@ -141,25 +139,25 @@ impl ConnectedTx for FullConnectedTransaction {
             txid: tx.compute_txid(),
             input: connect_tx_inputs(&tx.input, is_coinbase, tx_db, blk_index, blk_file)?
                 .into_iter()
-                .map(|x| x.into())
+                .map(Into::into)
                 .collect(),
-            output: tx.output.into_iter().map(|x| x.into()).collect(),
+            output: tx.output.into_iter().map(Into::into).collect(),
         })
     }
 }
 
 impl ConnectedTx for CompactConnectedTransaction {
-    type TOut = CompactTxOut;
+    type TxOut = CompactTxOut;
 
     fn from(tx: &Transaction) -> Self {
         Self {
             txid: tx.compute_txid(),
             input: Vec::new(),
-            output: tx.output.clone().into_iter().map(|x| x.into()).collect(),
+            output: tx.output.clone().into_iter().map(Into::into).collect(),
         }
     }
 
-    fn add_input(&mut self, input: Self::TOut) {
+    fn add_input(&mut self, input: Self::TxOut) {
         self.input.push(input);
     }
 
@@ -174,9 +172,9 @@ impl ConnectedTx for CompactConnectedTransaction {
             txid: tx.compute_txid(),
             input: connect_tx_inputs(&tx.input, is_coinbase, tx_db, blk_index, blk_file)?
                 .into_iter()
-                .map(|x| x.into())
+                .map(Into::into)
                 .collect(),
-            output: tx.output.into_iter().map(|x| x.into()).collect(),
+            output: tx.output.into_iter().map(Into::into).collect(),
         })
     }
 }
@@ -214,7 +212,7 @@ impl ConnectedBlock for CompactConnectedBlock {
 
     fn from(block_header: BlockHeader, block_hash: BlockHash) -> Self {
         Self {
-            header: CompactBlockHeader::parse(block_header, block_hash),
+            header: CompactBlockHeader::new(block_header, block_hash),
             txdata: Vec::new(),
         }
     }
@@ -231,7 +229,7 @@ impl ConnectedBlock for CompactConnectedBlock {
     ) -> Result<Self> {
         let block_hash = block.header.block_hash();
         Ok(Self {
-            header: CompactBlockHeader::parse(block.header, block_hash),
+            header: CompactBlockHeader::new(block.header, block_hash),
             txdata: connect_block_inputs(block.txdata, tx_db, blk_index, blk_file)?,
         })
     }
@@ -248,13 +246,8 @@ fn connect_block_inputs<Tx>(
 where
     Tx: ConnectedTx,
 {
-    // collect all inputs
-    let mut all_tx_in = Vec::with_capacity(transactions.len());
-    for tx in &transactions {
-        for tx_in in &tx.input {
-            all_tx_in.push(tx_in);
-        }
-    }
+    // Collect all transaction inputs from the block's transactions.
+    let all_tx_in: Vec<_> = transactions.iter().flat_map(|tx| tx.input.iter()).collect();
 
     // connect transactions inputs in parallel
     let mut connected_outputs: VecDeque<Option<TxOut>> = all_tx_in
@@ -264,17 +257,20 @@ where
 
     // reconstruct block
     let mut connected_tx = Vec::with_capacity(transactions.len());
+
     for tx in transactions {
         let outpoints_count = if tx.is_coinbase() { 0 } else { tx.input.len() };
 
         let mut outputs = Vec::with_capacity(outpoints_count);
-        for _ in 0..tx.input.len() {
+
+        for _ in &tx.input {
             let connected_out = connected_outputs.pop_front().unwrap();
             if let Some(out) = connected_out {
                 // also do not push the null input connected to coinbase transaction
                 outputs.push(out);
             }
         }
+
         // check if any output is missing
         if outputs.len() != outpoints_count {
             return Err(Error::MissingOutputs {
@@ -282,18 +278,19 @@ where
                 got: outputs.len(),
             });
         }
+
         let mut tx = Tx::from(&tx);
-        for o in outputs {
-            tx.add_input(o.into());
+        for output in outputs {
+            tx.add_input(output.into());
         }
+
         connected_tx.push(tx);
     }
+
     Ok(connected_tx)
 }
 
-///
 /// This function converts multiple Inputs of a single transaction to Outputs in parallel.
-///
 #[inline]
 fn connect_tx_inputs(
     tx_in: &[TxIn],
@@ -321,13 +318,9 @@ fn connect_tx_inputs(
     }
 }
 
-///
 /// This function connect a single TxIn to outputs. It converts:
 /// - read failure to `None`
 /// - coinbase transaction output to `None`
-///
-/// It is used in `connect_output_tx_in` and `connect_output`.
-///
 #[inline]
 fn connect_input(
     tx_in: &TxIn,
@@ -335,45 +328,45 @@ fn connect_input(
     blk_index: &BlockIndex,
     blk_file: &BlkFile,
 ) -> Option<TxOut> {
+    // skip coinbase transaction
+    if is_coin_base(tx_in) {
+        return None;
+    }
+
     let outpoint = tx_in.previous_output;
     let tx_id = outpoint.txid;
+
+    // special treatment of genesis tx, which cannot be found in tx-index.
+    if tx_db.is_genesis_tx(tx_id) {
+        let pos = blk_index.records.first()?;
+        return match blk_file.read_block(pos.n_file, pos.n_data_pos) {
+            Ok(mut blk) => {
+                let mut tx = blk.txdata.swap_remove(0);
+                Some(tx.output.swap_remove(0))
+            }
+            Err(_) => None,
+        };
+    }
+
     let n = outpoint.vout;
-    // skip coinbase transaction
-    if !is_coin_base(tx_in) {
-        // special treatment of genesis tx, which cannot be found in tx-index.
-        if tx_db.is_genesis_tx(tx_id) {
-            return match blk_index.records.first() {
-                None => None,
-                Some(pos) => match blk_file.read_block(pos.n_file, pos.n_data_pos) {
-                    Ok(mut blk) => {
-                        let mut tx = blk.txdata.swap_remove(0);
-                        Some(tx.output.swap_remove(0))
-                    }
-                    Err(_) => None,
-                },
-            };
-        }
-        if let Ok(record) = tx_db.get_tx_record(tx_id) {
-            if let Ok(mut tx) =
-                blk_file.read_transaction(record.n_file, record.n_pos, record.n_tx_offset)
-            {
-                let len = tx.output.len();
-                if n >= len as u32 {
-                    warn!("outpoint {} exceeds range", &outpoint);
-                    None
-                } else {
-                    Some(tx.output.swap_remove(n as usize))
-                }
-            } else {
-                warn!("fail to read transaction {}", &outpoint);
+
+    if let Ok(record) = tx_db.get_tx_record(tx_id) {
+        if let Ok(mut tx) =
+            blk_file.read_transaction(record.n_file, record.n_pos, record.n_tx_offset)
+        {
+            let len = tx.output.len();
+            if n >= len as u32 {
+                warn!("outpoint {outpoint} exceeds range");
                 None
+            } else {
+                Some(tx.output.swap_remove(n as usize))
             }
         } else {
-            warn!("cannot find outpoint {} in txDB", &outpoint);
+            warn!("fail to read transaction for {outpoint}");
             None
         }
     } else {
-        // skip coinbase transaction
+        warn!("cannot find outpoint {outpoint} in txDB");
         None
     }
 }

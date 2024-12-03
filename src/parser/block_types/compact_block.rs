@@ -42,7 +42,7 @@ impl From<Block> for CompactBlock {
     fn from(block: Block) -> Self {
         let block_hash = block.header.block_hash();
         Self {
-            header: CompactBlockHeader::parse(block.header, block_hash),
+            header: CompactBlockHeader::new(block.header, block_hash),
             txdata: block.txdata.into_iter().map(|x| x.into()).collect(),
         }
     }
@@ -66,7 +66,7 @@ pub struct CompactBlockHeader {
 }
 
 impl CompactBlockHeader {
-    pub fn parse(blk: crate::BlockHeader, block_hash: BlockHash) -> Self {
+    pub fn new(blk: crate::BlockHeader, block_hash: BlockHash) -> Self {
         Self {
             block_hash,
             time: blk.time,

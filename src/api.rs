@@ -57,9 +57,9 @@ pub fn get_addresses_from_script(script_pub_key: &str) -> Result<ScriptInfo> {
 }
 
 pub struct InnerDB {
-    pub block_index: BlockIndex,
     pub blk_file: BlkFile,
-    pub tx_db: TxDB,
+    pub block_index: BlockIndex,
+    pub tx_db: Option<TxDB>,
 }
 
 /// This is the main struct of this crate!! Click and read the doc.
@@ -79,11 +79,12 @@ impl Deref for BitcoinDB {
 }
 
 impl BitcoinDB {
-    /// This is the main structure for reading Bitcoin blockchain data.
+    /// Represents a Bitcoin blockchain data reader.
     ///
-    /// Instantiating this class by passing the `-datadir` directory of
-    /// Bitcoin core to the `new()` method.
-    /// `tx_index`: whether to try to open tx_index levelDB.
+    /// # Arguments
+    ///
+    /// `data_dir`: The directory containing Bitcoin blockchain data (specified by `-datadir` in Bitcoin Core).
+    /// `tx_index`: Flag indicating whether to attempt to open the transaction index (txindex) levelDB.
     ///
     /// # Example
     ///
@@ -93,29 +94,33 @@ impl BitcoinDB {
     ///
     /// let path = Path::new("/Users/me/bitcoin");
     ///
-    /// // launch without reading txindex
+    /// // Launch without reading txindex
     /// let db = BitcoinDB::new(path, false).unwrap();
     ///
-    /// // launch attempting to read txindex
+    /// // Launch attempting to read txindex
     /// let db = BitcoinDB::new(path, true).unwrap();
     /// ```
-    pub fn new(p: &Path, tx_index: bool) -> Result<Self> {
-        if !p.exists() {
-            return Err(Error::BitcoinDataDirDoesNotExist(p.display().to_string()));
+    pub fn new(data_dir: &Path, tx_index: bool) -> Result<Self> {
+        if !data_dir.exists() {
+            return Err(Error::BitcoinDataDirDoesNotExist(data_dir.to_path_buf()));
         }
-        let blk_path = p.join("blocks");
+
+        let blk_path = data_dir.join("blocks");
         let block_index = BlockIndex::new(blk_path.join("index"))?;
+
         let tx_db = if tx_index {
-            let tx_index_path = p.join("indexes").join("txindex");
-            TxDB::new(&tx_index_path, &block_index)
+            let tx_index_path = data_dir.join("indexes").join("txindex");
+            TxDB::open(&tx_index_path, &block_index)
         } else {
-            TxDB::null()
+            None
         };
+
         let inner = InnerDB {
             block_index,
             blk_file: BlkFile::new(blk_path.as_path())?,
             tx_db,
         };
+
         Ok(Self(Arc::new(inner)))
     }
 
@@ -147,19 +152,20 @@ impl BitcoinDB {
 
     /// Get block header information.
     ///
-    /// This is an in-memory query, thus very fast.
-    /// This method is useful for computing blockchain statistics.
+    /// This is an in-memory query, so it's very fast and doesn't involve disk access.
+    /// It is useful for computing blockchain statistics such as the total number of transactions.
     ///
     /// # Example
     ///
     /// ## Compute total number of transactions
+    ///
     /// ```rust
     /// use bitcoin_explorer::BitcoinDB;
     /// use std::path::Path;
     ///
     /// let path = Path::new("/Users/me/bitcoin");
     ///
-    /// // launch without reading txindex
+    /// // Launch without reading txindex
     /// let db = BitcoinDB::new(path, false).unwrap();
     ///
     /// let mut total_number_of_tx: usize = 0;
@@ -169,7 +175,7 @@ impl BitcoinDB {
     ///     let header = db.get_header(i).unwrap();
     ///     total_number_of_tx += header.n_tx as usize;
     /// }
-    /// println!("total number of transactions found on disk : {}.", total_number_of_tx);
+    /// println!("Total number of transactions found on disk: {}", total_number_of_tx);
     /// ```
     pub fn get_header(&self, height: usize) -> Result<&BlockIndexRecord> {
         self.block_index
@@ -205,10 +211,7 @@ impl BitcoinDB {
             .records
             .get(height)
             .ok_or(Error::BlockIndexRecordNotFound(height))?;
-        let blk = self
-            .blk_file
-            .read_raw_block(index.n_file, index.n_data_pos)?;
-        Ok(blk)
+        self.blk_file.read_raw_block(index.n_file, index.n_data_pos)
     }
 
     /// Get a block (in different formats (Block, FullBlock, CompactBlock))
@@ -234,8 +237,9 @@ impl BitcoinDB {
             .records
             .get(height)
             .ok_or(Error::BlockIndexRecordNotFound(height))?;
-        let blk = self.blk_file.read_block(index.n_file, index.n_data_pos)?;
-        Ok(blk.into())
+        self.blk_file
+            .read_block(index.n_file, index.n_data_pos)
+            .map(Into::into)
     }
 
     /// Get a transaction by providing txid.
@@ -268,21 +272,20 @@ impl BitcoinDB {
     /// let tx: CompactTransaction = db.get_transaction(txid).unwrap();
     /// ```
     pub fn get_transaction<T: From<Transaction>>(&self, txid: Txid) -> Result<T> {
-        if !self.tx_db.is_open() {
-            return Err(Error::TxDbUnavailable);
-        }
+        let tx_db = self.tx_db.as_ref().ok_or(Error::TxDbUnavailable)?;
+
         // give special treatment for genesis transaction
-        if self.tx_db.is_genesis_tx(txid) {
+        if tx_db.is_genesis_tx(txid) {
             return Ok(self.get_block::<Block>(0)?.txdata.swap_remove(0).into());
         }
-        let record = self.tx_db.get_tx_record(txid)?;
-        let tx = self
-            .blk_file
-            .read_transaction(record.n_file, record.n_pos, record.n_tx_offset)?;
-        Ok(tx.into())
+
+        let record = tx_db.get_tx_record(txid)?;
+        self.blk_file
+            .read_transaction(record.n_file, record.n_pos, record.n_tx_offset)
+            .map(Into::into)
     }
 
-    /// Get the height of the block containing a particular transaction.
+    /// Returns the height of the block containing the given transaction ID.
     ///
     /// This function requires `txindex` to be set to `true` for `BitcoinDB`,
     /// and requires that flag `txindex=1` has been enabled when
@@ -290,11 +293,9 @@ impl BitcoinDB {
     ///
     /// A transaction cannot be found using this function if it is
     /// not yet indexed using `txindex`.
-    pub fn get_height_of_transaction(&self, txid: Txid) -> Result<usize> {
-        if !self.tx_db.is_open() {
-            return Err(Error::TxDbUnavailable);
-        }
-        self.tx_db.get_block_height_of_tx(txid)
+    pub fn get_block_height(&self, txid: Txid) -> Result<usize> {
+        let tx_db = self.tx_db.as_ref().ok_or(Error::TxDbUnavailable)?;
+        tx_db.get_block_height(txid)
     }
 
     /// Iterate through all blocks from `start` to `end` (excluded).
@@ -347,14 +348,14 @@ impl BitcoinDB {
     ///     }
     /// }
     /// ```
-    pub fn block_iter<T>(&self, start: usize, end: usize) -> BlockIter<T>
+    pub fn block_iter<B>(&self, start: usize, end: usize) -> BlockIter<B>
     where
-        T: From<Block> + Send + 'static,
+        B: From<Block> + Send + 'static,
     {
         BlockIter::from_range(self, start, end)
     }
 
-    /// Iterate through all blocks of given heights.
+    /// Iterate through all blocks of given list of heights.
     ///
     /// Formats: `Block` / `FullBlock` / `CompactBlock`.
     ///
@@ -393,7 +394,7 @@ impl BitcoinDB {
     ///     }
     /// }
     ///
-    /// // iterate over simple blocks from 600000 to 700000
+    /// // iterate over compact blocks from 600000 to 700000
     /// for block in db.iter_heights::<CompactBlock, _>(some_heights.clone()) {
     ///     for tx in block.txdata {
     ///         println!("do something for this transaction");
@@ -406,14 +407,12 @@ impl BitcoinDB {
     ///         println!("do something for this transaction");
     ///     }
     /// }
-    ///
-    ///
     /// ```
-    pub fn iter_heights<T, TIter>(&self, heights: TIter) -> BlockIter<T>
+    pub fn iter_heights<B, I>(&self, heights: I) -> BlockIter<B>
     where
-        T: 'static + From<Block> + Send,
-        TIter: IntoIterator<Item = usize> + Send + 'static,
-        <TIter as IntoIterator>::IntoIter: Send + 'static,
+        B: 'static + From<Block> + Send,
+        I: IntoIterator<Item = usize> + Send + 'static,
+        <I as IntoIterator>::IntoIter: Send + 'static,
     {
         BlockIter::new(self, heights)
     }
@@ -433,11 +432,9 @@ impl BitcoinDB {
     ///
     /// Slow! For massive computation, use `db.connected_block_iter()`.
     pub fn get_connected_block<T: ConnectedBlock>(&self, height: usize) -> Result<T> {
-        if !self.tx_db.is_open() {
-            return Err(Error::TxDbUnavailable);
-        }
+        let tx_db = self.tx_db.as_ref().ok_or(Error::TxDbUnavailable)?;
         let tx = self.get_block(height)?;
-        T::connect(tx, &self.tx_db, &self.block_index, &self.blk_file)
+        T::connect(tx, tx_db, &self.block_index, &self.blk_file)
     }
 
     /// Get a transaction with outpoints replaced by outputs.
@@ -457,11 +454,9 @@ impl BitcoinDB {
     ///
     /// Slow! For massive computation, use `db.connected_block_iter()`.
     pub fn get_connected_transaction<T: ConnectedTx>(&self, txid: Txid) -> Result<T> {
-        if !self.tx_db.is_open() {
-            return Err(Error::TxDbUnavailable);
-        }
+        let tx_db = self.tx_db.as_ref().ok_or(Error::TxDbUnavailable)?;
         let tx = self.get_transaction(txid)?;
-        T::connect(tx, &self.tx_db, &self.block_index, &self.blk_file)
+        T::connect(tx, tx_db, &self.block_index, &self.blk_file)
     }
 
     /// Returns [`ConnectedBlockIter`] for iterating through all blocks for a given heights (excluded).
@@ -472,15 +467,18 @@ impl BitcoinDB {
     /// outputs of each outpoints.
     ///
     /// ## Note
+    ///
     /// This does NOT require `txindex=true`.
     ///
     /// # Performance
     ///
     /// ## Using default feature:
-    /// Requires 4 GB memory, finishes in 2.5 hours from 0-70000 block.
+    ///
+    /// Requires 4 GB memory, finishes in 2.5 hours from 0-700000 block.
     ///
     /// ## Using non-default feature
-    /// Requires 32 GB memory, finished in 30 minutes from 0-70000 block.
+    ///
+    /// Requires 32 GB memory, finished in 30 minutes from 0-700000 block.
     ///
     /// # Example
     ///
@@ -500,9 +498,9 @@ impl BitcoinDB {
     ///     }
     /// }
     /// ```
-    pub fn connected_block_iter<TBlock>(&self, end: usize) -> ConnectedBlockIter<TBlock>
+    pub fn connected_block_iter<B>(&self, end: usize) -> ConnectedBlockIter<B>
     where
-        TBlock: ConnectedBlock + Send + 'static,
+        B: ConnectedBlock + Send + 'static,
     {
         ConnectedBlockIter::new(self, end)
     }

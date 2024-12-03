@@ -65,12 +65,12 @@ mod on_disk_utxo {
     }
 
     /// fetch_block_connected, thread safe
-    pub fn connect_outpoints<TBlock>(unspent: &Arc<DB>, block: Block) -> Result<TBlock, ()>
+    pub fn connect_outpoints<B>(unspent: &Arc<DB>, block: Block) -> Result<B, ()>
     where
-        TBlock: ConnectedBlock,
+        B: ConnectedBlock,
     {
         let block_hash = block.header.block_hash();
-        let mut output_block = TBlock::from(block.header, block_hash);
+        let mut output_block = B::from(block.header, block_hash);
 
         // collect rocks db keys
         let mut keys = Vec::new();
@@ -104,7 +104,7 @@ mod on_disk_utxo {
         let mut pos = 0;
 
         for tx in block.txdata {
-            let mut output_tx: TBlock::Tx = ConnectedTx::from(&tx);
+            let mut output_tx: B::Tx = ConnectedTx::from(&tx);
 
             // spend new inputs
             for input in tx.input {
@@ -144,16 +144,21 @@ mod in_mem_utxo {
     use hash_hasher::HashedMap;
     use std::sync::{Arc, Mutex};
 
-    /// read block, update UTXO cache, return block
-    pub fn update_unspent_cache<TBlock>(
-        unspent: &Arc<
-            Mutex<HashedMap<Txid, Arc<Mutex<VecMap<<TBlock::Tx as ConnectedTx>::TOut>>>>>,
+    #[cfg(not(feature = "on-disk-utxo"))]
+    type InMemoryUtxoCache<B> = Arc<
+        Mutex<
+            HashedMap<Txid, Arc<Mutex<VecMap<<<B as ConnectedBlock>::Tx as ConnectedTx>::TxOut>>>>,
         >,
+    >;
+
+    /// read block, update UTXO cache, return block
+    pub fn update_unspent_cache<B>(
+        unspent: &InMemoryUtxoCache<B>,
         db: &BitcoinDB,
         height: usize,
     ) -> Result<Block, ()>
     where
-        TBlock: ConnectedBlock,
+        B: ConnectedBlock,
     {
         let block = db.get_block::<Block>(height).map_err(|_| ())?;
         let mut new_unspent_cache = Vec::with_capacity(block.txdata.len());
@@ -162,14 +167,14 @@ mod in_mem_utxo {
         for tx in block.txdata.iter() {
             // clone outputs
             let txid = tx.compute_txid();
-            let mut outs: Vec<Option<Box<<TBlock::Tx as ConnectedTx>::TOut>>> =
-                Vec::with_capacity(tx.output.len());
-            for o in tx.output.iter() {
-                outs.push(Some(Box::new(o.clone().into())));
-            }
+            let outs: Vec<Option<Box<<B::Tx as ConnectedTx>::TxOut>>> = tx
+                .output
+                .iter()
+                .map(|o| Some(Box::new(o.clone().into())))
+                .collect();
 
             // update unspent cache
-            let outs: VecMap<<TBlock::Tx as ConnectedTx>::TOut> =
+            let outs: VecMap<<B::Tx as ConnectedTx>::TxOut> =
                 VecMap::from_vec(outs.into_boxed_slice());
             let new_unspent = Arc::new(Mutex::new(outs));
 
@@ -187,20 +192,15 @@ mod in_mem_utxo {
     }
 
     /// fetch_block_connected, thread safe
-    pub fn connect_outpoints<TBlock>(
-        unspent: &Arc<
-            Mutex<HashedMap<Txid, Arc<Mutex<VecMap<<TBlock::Tx as ConnectedTx>::TOut>>>>>,
-        >,
-        block: Block,
-    ) -> Result<TBlock, ()>
+    pub fn connect_outpoints<B>(unspent: &InMemoryUtxoCache<B>, block: Block) -> Result<B, ()>
     where
-        TBlock: ConnectedBlock,
+        B: ConnectedBlock,
     {
         let block_hash = block.header.block_hash();
-        let mut output_block = TBlock::from(block.header, block_hash);
+        let mut output_block = B::from(block.header, block_hash);
 
         for tx in block.txdata {
-            let mut output_tx: TBlock::Tx = ConnectedTx::from(&tx);
+            let mut output_tx: B::Tx = ConnectedTx::from(&tx);
 
             // spend new inputs
             for input in tx.input {
@@ -243,6 +243,7 @@ mod in_mem_utxo {
             }
             output_block.add_tx(output_tx);
         }
+
         Ok(output_block)
     }
 }
