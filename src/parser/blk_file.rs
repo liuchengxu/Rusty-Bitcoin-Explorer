@@ -6,14 +6,17 @@ use crate::parser::xor::{XorReader, XOR_MASK_LEN};
 use bitcoin::io::Cursor;
 use bitcoin::{Block, Transaction};
 use std::collections::HashMap;
-use std::fs::{self, DirEntry, File};
-use std::io::{self, Seek, SeekFrom};
+use std::fs::{DirEntry, File};
+use std::io::{Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
+// the size of a header is 80.
+const HEADER_SIZE: u64 = 80;
+
 /// Resolve symlink.
-fn resolve_path(entry: &DirEntry) -> io::Result<PathBuf> {
+fn resolve_path(entry: &DirEntry) -> std::io::Result<PathBuf> {
     if entry.file_type()?.is_symlink() {
-        fs::read_link(entry.path())
+        std::fs::read_link(entry.path())
     } else {
         Ok(entry.path())
     }
@@ -29,25 +32,24 @@ fn parse_blk_index(path: impl AsRef<Path>) -> Option<i32> {
     blk_index.parse::<i32>().ok()
 }
 
-/// Scan blk folder to build an index of all blk files.
-fn scan_path(path: &Path) -> Result<HashMap<i32, PathBuf>> {
-    let mut collected = HashMap::with_capacity(4000);
-    for entry in fs::read_dir(path)? {
-        let de = entry?;
-        let path = resolve_path(&de)?;
+/// Scan `blocks` folder to build an index of all blk files.
+fn scan_blocks_dir(blocks_dir: &Path) -> Result<HashMap<i32, PathBuf>> {
+    let mut blk_files = HashMap::with_capacity(5000);
+    for entry in std::fs::read_dir(blocks_dir)? {
+        let path = resolve_path(&entry?)?;
         if !path.is_file() {
             continue;
         };
 
         if let Some(index) = parse_blk_index(path.as_path()) {
-            collected.insert(index, path);
+            blk_files.insert(index, path);
         }
     }
-    collected.shrink_to_fit();
-    if collected.is_empty() {
+    blk_files.shrink_to_fit();
+    if blk_files.is_empty() {
         Err(Error::EmptyBlockFiles)
     } else {
-        Ok(collected)
+        Ok(blk_files)
     }
 }
 
@@ -55,10 +57,10 @@ fn scan_path(path: &Path) -> Result<HashMap<i32, PathBuf>> {
 ///
 /// If no `xor.dat` file is present, use all-zeroed array to perform an XOR no-op.
 ///
-/// Note: added since Bitcoin Core 28.0.
-fn read_xor_mask<P: AsRef<Path>>(dir: P) -> std::io::Result<Option<[u8; XOR_MASK_LEN]>> {
+/// Note: `xor.data` was added since Bitcoin Core 28.0.
+fn read_xor_mask<P: AsRef<Path>>(blocks_dir: P) -> std::io::Result<Option<[u8; XOR_MASK_LEN]>> {
     use std::io::Read;
-    let path = dir.as_ref().join("xor.dat");
+    let path = blocks_dir.as_ref().join("xor.dat");
     if !path.exists() {
         return Ok(Default::default());
     }
@@ -77,10 +79,14 @@ pub struct BlkFile {
 
 impl BlkFile {
     /// Construct an index of all blk files.
+    ///
+    /// # Arguments
+    ///
+    /// `path`: Path of `bitcoin_core_data_dir/blocks`.
     pub(crate) fn new(path: &Path) -> Result<BlkFile> {
         let xor_mask = read_xor_mask(path)?;
         Ok(Self {
-            files: scan_path(path)?,
+            files: scan_blocks_dir(path)?,
             xor_mask,
         })
     }
@@ -119,8 +125,11 @@ impl BlkFile {
             .ok_or(Error::BlockFileNotFound(n_file))?;
 
         let mut r = XorReader::new(File::open(blk_path)?, self.xor_mask);
-        // the size of a header is 80.
-        r.seek(SeekFrom::Start(n_pos as u64 + n_tx_offset as u64 + 80))?;
+
+        r.seek(SeekFrom::Start(
+            n_pos as u64 + n_tx_offset as u64 + HEADER_SIZE,
+        ))?;
+
         r.read_transaction()
     }
 }

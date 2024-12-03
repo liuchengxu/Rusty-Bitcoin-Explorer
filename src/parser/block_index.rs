@@ -51,7 +51,7 @@ impl BlockIndexRecord {
     /// Decode levelDB value for Block Index Record.
     ///
     /// https://github.com/bitcoin/bitcoin/blob/0903ce8dbc25d3823b03d52f6e6bff74d19e801e/src/chain.h#L377
-    fn parse(values: &[u8]) -> Result<Self> {
+    fn decode(values: &[u8]) -> Result<Self> {
         let mut reader = Cursor::new(values);
 
         let n_version = reader.read_varint()? as i32;
@@ -128,6 +128,11 @@ impl BlockIndex {
     }
 }
 
+#[inline]
+fn is_block_index_record(data: &[u8]) -> bool {
+    data.first() == Some(&b'b')
+}
+
 /// Load all block index in memory from leveldb (i.e. `blocks/index` path).
 ///
 /// Map from block height to block index record.
@@ -147,7 +152,7 @@ fn load_block_index(path: &Path) -> Result<Vec<BlockIndexRecord>> {
         let k = iter.key();
         let v = iter.value();
         if is_block_index_record(&k.key) {
-            let record = BlockIndexRecord::parse(&v)?;
+            let record = BlockIndexRecord::decode(&v)?;
             // only add valid block index record that has block data.
             if record.is_valid() {
                 let block_hash = record.block_header.block_hash();
@@ -206,9 +211,4 @@ impl db_key::Key for BlockKey {
     fn as_slice<T, F: Fn(&[u8]) -> T>(&self, f: F) -> T {
         f(&self.key)
     }
-}
-
-#[inline]
-fn is_block_index_record(data: &[u8]) -> bool {
-    data.first() == Some(&b'b')
 }

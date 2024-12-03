@@ -210,8 +210,7 @@ fn get_num_keys(op: &Instruction) -> Option<i32> {
 
 /// Get address from p2pk script.
 ///
-/// Can only be used for p2pk script,
-/// otherwise panic.
+/// Can only be used for p2pk script, otherwise panic.
 #[inline]
 fn p2pk_to_address(script: &Script) -> Option<Address> {
     assert!(script.is_p2pk());

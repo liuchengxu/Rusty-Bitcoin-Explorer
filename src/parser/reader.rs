@@ -41,9 +41,6 @@ pub trait BlockchainRead: bitcoin::io::BufRead {
     }
 
     /// Reads a single byte from the stream.
-    ///
-    /// # Returns
-    /// `Result<u8>`: The byte read from the stream.
     #[inline]
     fn read_u8(&mut self) -> Result<u8> {
         let mut buf = [0u8; 1];

@@ -24,7 +24,7 @@ pub struct TransactionRecord {
 }
 
 impl TransactionRecord {
-    fn parse(key: &[u8], values: &[u8]) -> Result<Self> {
+    fn decode(key: &[u8], values: &[u8]) -> Result<Self> {
         let mut reader = Cursor::new(values);
         Ok(Self {
             txid: Txid::from_slice(key)?,
@@ -94,7 +94,7 @@ impl TxDB {
         let key = TxKey { key };
         let value = self.db.get(ReadOptions::new(), &key)?;
         if let Some(value) = value {
-            Ok(TransactionRecord::parse(&key.key[1..], value.as_slice())?)
+            Ok(TransactionRecord::decode(&key.key[1..], value.as_slice())?)
         } else {
             Err(Error::TransactionRecordNotFound(txid))
         }
@@ -120,7 +120,7 @@ struct TxKey {
 /// levelDB key utility
 impl db_key::Key for TxKey {
     fn from_u8(key: &[u8]) -> Self {
-        TxKey {
+        Self {
             key: Vec::from(key),
         }
     }
