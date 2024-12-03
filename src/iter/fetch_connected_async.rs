@@ -160,7 +160,6 @@ mod in_mem_utxo {
         // insert new transactions
         for tx in block.txdata.iter() {
             // clone outputs
-            let txid = tx.compute_txid();
             let outs: Vec<Option<Box<<B::Tx as ConnectedTx>::TxOut>>> = tx
                 .output
                 .iter()
@@ -172,10 +171,12 @@ mod in_mem_utxo {
                 VecMap::from_vec(outs.into_boxed_slice());
             let new_unspent = Arc::new(Mutex::new(outs));
 
+            let txid = tx.compute_txid();
+
             // the new transaction should not be in unspent
             #[cfg(debug_assertions)]
             if unspent.lock().unwrap().contains_key(&txid) {
-                log::warn!("found duplicate key {}", &txid);
+                log::warn!("found duplicate key {txid}");
             }
 
             new_unspent_cache.push((txid, new_unspent));
