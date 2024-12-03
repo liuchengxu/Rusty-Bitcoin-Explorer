@@ -1,17 +1,16 @@
+//! Add multi-sig pattern recognition and decode addresses from multi-sig script.
+
 use bitcoin::blockdata::opcodes::{all, Opcode};
 use bitcoin::blockdata::script::Instruction;
 use bitcoin::hashes::{hash160, Hash};
 use bitcoin::{Address, Network, PubkeyHash, PublicKey, Script};
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use Instruction::{Op, PushBytes};
 
-///
 /// Different types of bitcoin Scripts.
 ///
 /// See [An Analysis of Non-standard Transactions](https://doi.org/10.3389/fbloc.2019.00007)
 /// for a more detailed explanation.
-///
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ScriptType {
     OpReturn,
@@ -25,18 +24,44 @@ pub enum ScriptType {
     NotRecognised,
 }
 
-///
+impl std::fmt::Display for ScriptType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::OpReturn => write!(f, "OpReturn"),
+            Self::Pay2MultiSig => write!(f, "Pay2MultiSig"),
+            Self::Pay2PublicKey => write!(f, "Pay2PublicKey"),
+            Self::Pay2PublicKeyHash => write!(f, "Pay2PublicKeyHash"),
+            Self::Pay2ScriptHash => write!(f, "Pay2ScriptHash"),
+            Self::Pay2WitnessPublicKeyHash => write!(f, "Pay2WitnessPublicKeyHash"),
+            Self::Pay2WitnessScriptHash => write!(f, "Pay2WitnessScriptHash"),
+            Self::WitnessProgram => write!(f, "WitnessProgram"),
+            Self::NotRecognised => write!(f, "NotRecognised"),
+        }
+    }
+}
+
 /// `ScriptInfo` stores a list of addresses extracted from ScriptPubKey.
-///
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScriptInfo {
     pub addresses: Vec<Address>,
     pub pattern: ScriptType,
 }
 
-///
+impl ScriptInfo {
+    pub(crate) fn new(address: Option<Address>, pattern: ScriptType) -> Self {
+        if let Some(address) = address {
+            Self::from_vec(vec![address], pattern)
+        } else {
+            Self::from_vec(Vec::new(), pattern)
+        }
+    }
+
+    pub(crate) fn from_vec(addresses: Vec<Address>, pattern: ScriptType) -> Self {
+        Self { addresses, pattern }
+    }
+}
+
 /// This function extract addresses and script type from Script.
-///
 pub fn evaluate_script(script: &Script, net: Network) -> ScriptInfo {
     let address = Address::from_script(script, net).ok();
     if script.is_p2pk() {
@@ -60,21 +85,6 @@ pub fn evaluate_script(script: &Script, net: Network) -> ScriptInfo {
     }
 }
 
-impl ScriptInfo {
-    pub(crate) fn new(address: Option<Address>, pattern: ScriptType) -> Self {
-        if let Some(address) = address {
-            Self::from_vec(vec![address], pattern)
-        } else {
-            Self::from_vec(Vec::new(), pattern)
-        }
-    }
-
-    pub(crate) fn from_vec(addresses: Vec<Address>, pattern: ScriptType) -> Self {
-        Self { addresses, pattern }
-    }
-}
-
-///
 /// translated from Bitcoinj:
 /// [isSentToMultisig()](https://github.com/bitcoinj/bitcoinj/blob/d3d5edbcbdb91b25de4df3b6ed6740d7e2329efc/core/src/main/java/org/bitcoinj/script/ScriptPattern.java#L225:L246)
 fn is_multisig(script: &Script) -> bool {
@@ -135,9 +145,7 @@ fn is_multisig(script: &Script) -> bool {
     true
 }
 
-///
 /// Obtain addresses for multisig transactions.
-///
 fn multisig_addresses(script: &Script) -> Vec<Address> {
     assert!(is_multisig(script));
     let ops: Vec<Instruction> = script.instructions().filter_map(|o| o.ok()).collect();
@@ -165,12 +173,10 @@ fn multisig_addresses(script: &Script) -> Vec<Address> {
     public_keys
 }
 
-///
 /// Decode OP_N
 ///
 /// translated from BitcoinJ:
 /// [decodeFromOpN()](https://github.com/bitcoinj/bitcoinj/blob/d3d5edbcbdb91b25de4df3b6ed6740d7e2329efc/core/src/main/java/org/bitcoinj/script/Script.java#L515:L524)
-///
 #[inline]
 fn decode_from_op_n(op: Opcode) -> i32 {
     if op.eq(&all::OP_PUSHBYTES_0) {
@@ -202,12 +208,9 @@ fn get_num_keys(op: &Instruction) -> Option<i32> {
     }
 }
 
-///
 /// Get address from p2pk script.
 ///
-/// Can only be used for p2pk script,
-/// otherwise panic.
-///
+/// Can only be used for p2pk script, otherwise panic.
 #[inline]
 fn p2pk_to_address(script: &Script) -> Option<Address> {
     assert!(script.is_p2pk());
@@ -230,22 +233,6 @@ trait Cmp {
 impl Cmp for bitcoin::blockdata::opcodes::Opcode {
     fn ge(&self, other: &Self) -> bool {
         self.to_u8() >= other.to_u8()
-    }
-}
-
-impl fmt::Display for ScriptType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ScriptType::OpReturn => write!(f, "OpReturn"),
-            ScriptType::Pay2MultiSig => write!(f, "Pay2MultiSig"),
-            ScriptType::Pay2PublicKey => write!(f, "Pay2PublicKey"),
-            ScriptType::Pay2PublicKeyHash => write!(f, "Pay2PublicKeyHash"),
-            ScriptType::Pay2ScriptHash => write!(f, "Pay2ScriptHash"),
-            ScriptType::Pay2WitnessPublicKeyHash => write!(f, "Pay2WitnessPublicKeyHash"),
-            ScriptType::Pay2WitnessScriptHash => write!(f, "Pay2WitnessScriptHash"),
-            ScriptType::WitnessProgram => write!(f, "WitnessProgram"),
-            ScriptType::NotRecognised => write!(f, "NotRecognised"),
-        }
     }
 }
 

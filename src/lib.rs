@@ -1,4 +1,3 @@
-//!
 //! # Introduction
 //!
 //! This library is designed for efficient and massive deserialization
@@ -31,12 +30,11 @@
 //!
 //! Feature '`on-disk-utxo`' is enabled by default,
 //! which uses an on-disk cache to keep track of unspent transaction
-//! for iterator `db.iter_connected_block`.
+//! for iterator `db.connected_block_iter`.
 //!
 //! To use in-memory UTXO cache for better performance,
 //! use `default-features = false` to Cargo.toml,
 //! which requires 32GB+ RAM.
-//!
 
 pub(crate) mod api;
 pub mod iter;

@@ -44,11 +44,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-      with:
-        lfs: true
-
-    - name: Checkout LFS objects
-      run: git lfs checkout
+      # with:
+        # lfs: true
 
     - name: Build
       run: |
@@ -56,6 +53,9 @@ jobs:
         cargo build --verbose --release --no-default-features
 
     # TODO: fix tests
+    # - name: Checkout LFS objects
+      # run: git lfs checkout
+
     # - name: Run tests default
       # run: cargo test --release --package bitcoin-explorer -- --test-threads=1 --show-output
 

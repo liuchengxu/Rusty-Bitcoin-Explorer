@@ -1,10 +1,14 @@
 # bitcoin-explorer
 
-![rust test](https://github.com/Congyuwang/Rusty-Bitcoin-Explorer/actions/workflows/rust.yml/badge.svg)
-![publish](https://github.com/Congyuwang/Rusty-Bitcoin-Explorer/actions/workflows/publish.yml/badge.svg)
-[![Crates.io](https://img.shields.io/crates/v/bitcoin-explorer.svg)](https://crates.io/crates/bitcoin-explorer/)
-![Downloads](https://img.shields.io/crates/d/bitcoin-explorer)
-[![](https://tokei.rs/b1/github/Congyuwang/Rusty-Bitcoin-Explorer)](https://github.com/Congyuwang/Rusty-Bitcoin-Explorer)
+[![Rust](https://github.com/liuchengxu/Rusty-Bitcoin-Explorer/actions/workflows/rust.yml/badge.svg)](https://github.com/liuchengxu/Rusty-Bitcoin-Explorer/actions/workflows/rust.yml)
+
+This is a fork of https://github.com/Congyuwang/Rusty-Bitcoin-Explorer primarily for supporting [Subcoin](https://github.com/subcoin-project/subcoin).
+
+Main fork changes:
+
+- Support Bitcoin Core 28.
+
+--------------
 
 `bitcoin_explorer` is an efficient library for decoding transaction information from
 bitcoin blockchain.
@@ -17,7 +21,7 @@ Support bitcoin MainNet, might support other networks in the future.
 
 - Query blocks based on block heights or block hash.
 - Support `tx_index=1`.
-- Find input addresses using UTXO cache (`iter_connected_block()`).
+- Find input addresses using UTXO cache (`connected_block_iter()`).
 
 ### **2. Concurrency + Iterator + Sequential Output**
 
@@ -41,7 +45,7 @@ See [Rust Documentation](https://docs.rs/bitcoin-explorer/)
 
 ### Get total number of blocks and transactions available on disk
 ```rust
-use bitcoin_explorer::{BitcoinDB, FConnectedBlock, SConnectedBlock};
+use bitcoin_explorer::{BitcoinDB, FullConnectedBlock, CompactConnectedBlock};
 use std::path::Path;
 
 fn main() {
@@ -59,10 +63,10 @@ fn main() {
 
 ```
 
-### Get a block (i.e., see doc for what is full/simple format (`FBlock`/`SBlock`) )
+### Get a block (i.e., see doc for what is full/simple format (`FullBlock`/`CompactBlock`) )
 
 ```rust
-use bitcoin_explorer::{BitcoinDB, FBlock, SBlock, Block};
+use bitcoin_explorer::{BitcoinDB, FullBlock, CompactBlock, Block};
 use std::path::Path;
 
 fn main() {
@@ -73,8 +77,8 @@ fn main() {
 
     // get block of height 600000 (in different formats)
     let block: Block = db.get_block(600000).unwrap();
-    let block: FBlock = db.get_block(600000).unwrap();
-    let block: SBlock = db.get_block(600000).unwrap();
+    let block: FullBlock = db.get_block(600000).unwrap();
+    let block: CompactBlock = db.get_block(600000).unwrap();
 }
 ```
 
@@ -83,7 +87,7 @@ fn main() {
 Note: this requires building tx index with `--txindex=1` flag using Bitcoin Core.
 
 ```rust
-use bitcoin_explorer::{BitcoinDB, Transaction, FTransaction, STransaction, Txid, FromHex};
+use bitcoin_explorer::{BitcoinDB, Transaction, FullTransaction, CompactTransaction, Txid, FromHex};
 use std::path::Path;
 
 fn main() {
@@ -98,16 +102,16 @@ fn main() {
     let txid = Txid::from_hex(txid_str).unwrap();
 
     // get transactions in different formats
-    let tx: Transaction = db.get_transaction(&txid).unwrap();
-    let tx: FTransaction = db.get_transaction(&txid).unwrap();
-    let tx: STransaction = db.get_transaction(&txid).unwrap();
+    let tx: Transaction = db.get_transaction(txid).unwrap();
+    let tx: FullTransaction = db.get_transaction(txid).unwrap();
+    let tx: CompactTransaction = db.get_transaction(txid).unwrap();
 }
 ```
 
 ### Iterate through all blocks (in different formats)
 
 ```rust
-use bitcoin_explorer::{BitcoinDB, Block, SBlock, FBlock};
+use bitcoin_explorer::{BitcoinDB, Block, CompactBlock, FullBlock};
 use std::path::Path;
 
 fn main() {
@@ -117,21 +121,21 @@ fn main() {
     let db = BitcoinDB::new(path, false).unwrap();
 
     // iterate over block from 0 to 1000
-    for block in db.iter_block::<Block>(0, 1000) {
+    for block in db.block_iter::<Block>(0, 1000) {
         for tx in block.txdata {
             println!("do something for this transaction");
         }
     }
 
     // iterate over block from 1000 to end
-    for block in db.iter_block::<FBlock>(1000, db.get_block_count()) {
+    for block in db.block_iter::<FullBlock>(1000, db.get_block_count()) {
         for tx in block.txdata {
             println!("do something for this transaction");
         }
     }
 
     // iterate over block from 0 to end
-    for block in db.iter_block::<SBlock>(0, db.get_block_count()) {
+    for block in db.block_iter::<CompactBlock>(0, db.get_block_count()) {
         for tx in block.txdata {
             println!("do something for this transaction");
         }
@@ -142,7 +146,7 @@ fn main() {
 ### Iterate through all blocks with Input Addresses Found (`ConnectedBlock`)
 
 ```rust
-use bitcoin_explorer::{BitcoinDB, FConnectedBlock, SConnectedBlock};
+use bitcoin_explorer::{BitcoinDB, FullConnectedBlock, CompactConnectedBlock};
 use std::path::Path;
 
 fn main() {
@@ -154,7 +158,7 @@ fn main() {
     let end = db.get_block_count();
 
     // iterate over all blocks found (simple connected format)
-    for block in db.iter_connected_block::<SConnectedBlock>(end) {
+    for block in db.connected_block_iter::<CompactConnectedBlock>(end) {
         for tx in block.txdata {
             println!("do something for this transaction");
         }
@@ -182,7 +186,7 @@ SSD for better performance.
 ### Iteration Through All Blocks (0 - 700000)
 
 ```rust
-db.iter_block::<SBlock>(0, 700000)
+db.block_iter::<CompactBlock>(0, 700000)
 ```
 
 - Time: about 10 minutes
@@ -191,7 +195,7 @@ db.iter_block::<SBlock>(0, 700000)
 ### Iteration Through All Blocks (0 - 700000) With Input Addresses 
 
 ```rust
-db.iter_connected_block::<SConnectedBlock>(700000)
+db.connected_block_iter::<CompactConnectedBlock>(700000)
 ```
 
 #### Using default configuration
@@ -230,7 +234,7 @@ Copyright (C) 2009-2020 The Bitcoin Core developers`.
 ### Non-Default Feature (In-Memory-UTXO cache)
 
 If you have more than 32 GB memory, you might try `default-features = false`
-for faster performance on `db.iter_connected_block()`
+for faster performance on `db.connected_block_iter()`
 ```toml
 bitcoin-explorer = { version = "^1.2", default-features = false }
 ```
