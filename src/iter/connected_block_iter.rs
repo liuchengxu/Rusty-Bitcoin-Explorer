@@ -1,34 +1,20 @@
 use crate::api::BitcoinDB;
 use crate::iter::fetch_connected_async::{connect_outpoints, update_unspent_cache};
-#[cfg(not(feature = "on-disk-utxo"))]
-use crate::iter::util::VecMap;
 use crate::parser::block_types::connected_block::ConnectedBlock;
 #[cfg(not(feature = "on-disk-utxo"))]
 use crate::parser::block_types::connected_block::ConnectedTx;
-#[cfg(not(feature = "on-disk-utxo"))]
-use bitcoin::Txid;
-#[cfg(not(feature = "on-disk-utxo"))]
-use hash_hasher::HashedMap;
-#[cfg(feature = "on-disk-utxo")]
-use log::error;
-#[cfg(feature = "on-disk-utxo")]
-use num_cpus;
 use par_iter_sync::{IntoParallelIteratorSync, ParIterSync};
-#[cfg(feature = "on-disk-utxo")]
-use rocksdb::{Options, SliceTransform, DB};
 use std::sync::Arc;
 #[cfg(not(feature = "on-disk-utxo"))]
 use std::sync::Mutex;
-#[cfg(feature = "on-disk-utxo")]
-use tempdir::TempDir;
 
 /// 32 (txid) + 4 (i32 out n)
 #[cfg(feature = "on-disk-utxo")]
 pub(crate) const KEY_LENGTH: u32 = 32 + 4;
 
 #[cfg(feature = "on-disk-utxo")]
-fn create_db(path: impl AsRef<std::path::Path>) -> Option<DB> {
-    let mut options = Options::default();
+fn create_db(path: impl AsRef<std::path::Path>) -> Option<rocksdb::DB> {
+    let mut options = rocksdb::Options::default();
     // create table
     options.create_if_missing(true);
     // config to more jobs
@@ -43,11 +29,11 @@ fn create_db(path: impl AsRef<std::path::Path>) -> Option<DB> {
     // use a smaller compaction multiplier
     options.set_max_bytes_for_level_multiplier(4.0);
     // use 8-byte prefix (2 ^ 64 is far enough for transaction counts)
-    options.set_prefix_extractor(SliceTransform::create_fixed_prefix(8));
-    match DB::open(&options, path) {
+    options.set_prefix_extractor(rocksdb::SliceTransform::create_fixed_prefix(8));
+    match rocksdb::DB::open(&options, path) {
         Ok(db) => Some(db),
         Err(e) => {
-            error!("failed to create temp rocksDB for UTXO: {}", e);
+            log::error!("failed to create temp rocksDB for UTXO: {}", e);
             None
         }
     }
@@ -58,12 +44,19 @@ pub struct ConnectedBlockIter<B> {
     inner: ParIterSync<B>,
     #[cfg(feature = "on-disk-utxo")]
     #[allow(dead_code)]
-    cache: Option<TempDir>,
+    cache: Option<tempdir::TempDir>,
 }
 
 #[cfg(not(feature = "on-disk-utxo"))]
-pub type InMemoryUtxoCache<B> = Arc<
-    Mutex<HashedMap<Txid, Arc<Mutex<VecMap<<<B as ConnectedBlock>::Tx as ConnectedTx>::TxOut>>>>>,
+type InMemoryUtxoCache<B> = Arc<
+    Mutex<
+        hash_hasher::HashedMap<
+            bitcoin::Txid,
+            Arc<
+                Mutex<crate::iter::util::VecMap<<<B as ConnectedBlock>::Tx as ConnectedTx>::TxOut>>,
+            >,
+        >,
+    >,
 >;
 
 impl<B> ConnectedBlockIter<B>
@@ -73,15 +66,15 @@ where
     /// the worker threads are dispatched in this `new` constructor!
     pub fn new(db: &BitcoinDB, end: usize) -> Self {
         #[cfg(not(feature = "on-disk-utxo"))]
-        let unspent: InMemoryUtxoCache<B> = Arc::new(Mutex::new(HashedMap::default()));
+        let unspent: InMemoryUtxoCache<B> = Arc::new(Mutex::new(hash_hasher::HashedMap::default()));
 
         #[cfg(feature = "on-disk-utxo")]
         let (cache_dir, unspent) = {
             let cache_dir = {
-                match TempDir::new("rocks_db") {
+                match tempdir::TempDir::new("rocks_db") {
                     Ok(tempdir) => tempdir,
                     Err(e) => {
-                        error!("failed to create rocksDB tempdir for UTXO: {}", e);
+                        log::error!("failed to create rocksDB tempdir for UTXO: {}", e);
                         return Self::null();
                     }
                 }
@@ -118,7 +111,7 @@ where
 
         Self {
             inner: output_iterator,
-            // cache dir will be deleted when ConnectedBlockIter is dropped
+            // `cache_dir` will be deleted when ConnectedBlockIter is dropped.
             #[cfg(feature = "on-disk-utxo")]
             cache: Some(cache_dir),
         }

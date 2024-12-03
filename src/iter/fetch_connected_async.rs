@@ -73,21 +73,22 @@ mod on_disk_utxo {
         let mut output_block = B::from(block.header, block_hash);
 
         // collect rocks db keys
-        let mut keys = Vec::new();
-
-        for tx in block.txdata.iter() {
-            for input in tx.input.iter() {
-                // skip coinbase transaction
-                if input.previous_output.is_null() {
-                    continue;
-                }
-
-                keys.push(txout_key(
-                    input.previous_output.txid,
-                    input.previous_output.vout,
-                ));
-            }
-        }
+        let keys = block
+            .txdata
+            .iter()
+            .flat_map(|tx| {
+                tx.input.iter().filter_map(|input| {
+                    if input.previous_output.is_null() {
+                        None
+                    } else {
+                        Some(txout_key(
+                            input.previous_output.txid,
+                            input.previous_output.vout,
+                        ))
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
 
         // get utxo
         let tx_outs = unspent.multi_get(keys.clone());
@@ -95,7 +96,7 @@ mod on_disk_utxo {
         // remove keys
         for key in keys {
             if let Err(e) = unspent.delete(&key) {
-                log::error!("failed to remove key {:?}, error: {}", &key, e);
+                log::error!("failed to remove key {key:?}: {e}");
                 return Err(());
             }
         }
@@ -114,10 +115,8 @@ mod on_disk_utxo {
                 }
 
                 let prev_txo = match tx_outs.get(pos).unwrap() {
-                    Ok(bytes) => match bytes {
-                        None => None,
-                        Some(bytes) => txout_from_u8(bytes.to_vec()),
-                    },
+                    Ok(Some(bytes)) => txout_from_u8(bytes.to_vec()),
+                    Ok(None) => None,
                     Err(_) => None,
                 };
 
