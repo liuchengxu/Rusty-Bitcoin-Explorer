@@ -279,9 +279,9 @@ impl BitcoinDB {
             return Ok(self.get_block::<Block>(0)?.txdata.swap_remove(0).into());
         }
 
-        let record = tx_db.get_tx_record(txid)?;
+        let tx_pos = tx_db.get_tx_position(txid)?;
         self.blk_file
-            .read_transaction(record.n_file, record.n_pos, record.n_tx_offset)
+            .read_transaction(tx_pos.n_file, tx_pos.n_data_pos, tx_pos.n_tx_offset)
             .map(Into::into)
     }
 
@@ -387,22 +387,8 @@ impl BitcoinDB {
     ///
     /// let some_heights = vec![3, 5, 7, 9];
     ///
-    /// // iterate over blocks from 600000 to 700000
+    /// // iterate over blocks in the list [3, 5, 7, 9].
     /// for block in db.iter_heights::<Block, _>(some_heights.clone()) {
-    ///     for tx in block.txdata {
-    ///         println!("do something for this transaction");
-    ///     }
-    /// }
-    ///
-    /// // iterate over compact blocks from 600000 to 700000
-    /// for block in db.iter_heights::<CompactBlock, _>(some_heights.clone()) {
-    ///     for tx in block.txdata {
-    ///         println!("do something for this transaction");
-    ///     }
-    /// }
-    ///
-    /// // iterate over full blocks from 600000 to 700000
-    /// for block in db.iter_heights::<FullBlock, _>(some_heights.clone()) {
     ///     for tx in block.txdata {
     ///         println!("do something for this transaction");
     ///     }

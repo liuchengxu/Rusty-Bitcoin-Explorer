@@ -125,6 +125,7 @@ mod on_disk_utxo {
             }
             output_block.add_tx(output_tx);
         }
+
         Ok(output_block)
     }
 }
