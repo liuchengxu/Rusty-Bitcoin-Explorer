@@ -15,24 +15,12 @@ use std::str::FromStr;
 
 const GENESIS_TXID: &str = "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b";
 
-/// Transaction record stored on disk.
-pub struct TransactionRecord {
+/// Represents the disk location of a transaction.
+pub struct TransactionPosition {
     pub txid: Txid,
     pub n_file: i32,
-    pub n_pos: u32,
+    pub n_data_pos: u32,
     pub n_tx_offset: u32,
-}
-
-impl TransactionRecord {
-    fn decode(key: &[u8], values: &[u8]) -> Result<Self> {
-        let mut reader = Cursor::new(values);
-        Ok(Self {
-            txid: Txid::from_slice(key)?,
-            n_file: reader.read_varint()? as i32,
-            n_pos: reader.read_varint()? as u32,
-            n_tx_offset: reader.read_varint()? as u32,
-        })
-    }
 }
 
 /// Responsible for looking up transaction position using txid.
@@ -69,7 +57,8 @@ impl TxDB {
                 Some(Self {
                     db,
                     file_pos_to_height,
-                    genesis_txid: Txid::from_str(GENESIS_TXID).unwrap(),
+                    genesis_txid: Txid::from_str(GENESIS_TXID)
+                        .expect("Genesis txid must be valid; qed"),
                 })
             }
             Err(e) => {
@@ -85,8 +74,10 @@ impl TxDB {
         txid == self.genesis_txid
     }
 
-    /// note that this function cannot find genesis block, which needs special treatment
-    pub(crate) fn get_tx_record(&self, txid: Txid) -> Result<TransactionRecord> {
+    /// Returns the disk location of the transaction data with given txid.
+    ///
+    /// Note that this function cannot support genesis txid.
+    pub(crate) fn get_tx_position(&self, txid: Txid) -> Result<TransactionPosition> {
         let inner = txid.as_byte_array();
         let mut key = Vec::with_capacity(inner.len() + 1);
         key.push(b't');
@@ -94,7 +85,17 @@ impl TxDB {
         let key = TxKey { key };
         let value = self.db.get(ReadOptions::new(), &key)?;
         if let Some(value) = value {
-            Ok(TransactionRecord::decode(&key.key[1..], value.as_slice())?)
+            // Decode the transaction record from database.
+            //
+            // https://github.com/bitcoin/bitcoin/blob/0903ce8dbc25d3823b03d52f6e6bff74d19e801e/src/index/txindex.cpp#L63
+            let mut reader = Cursor::new(value);
+            let tx_record = TransactionPosition {
+                txid,
+                n_file: reader.read_varint()? as i32,
+                n_data_pos: reader.read_varint()? as u32,
+                n_tx_offset: reader.read_varint()? as u32,
+            };
+            Ok(tx_record)
         } else {
             Err(Error::TransactionRecordNotFound(txid))
         }
@@ -104,9 +105,12 @@ impl TxDB {
         if self.is_genesis_tx(txid) {
             return Ok(0);
         }
-        let record = self.get_tx_record(txid)?;
-        match self.file_pos_to_height.get(&(record.n_file, record.n_pos)) {
-            Some(pos_height) => Ok(*pos_height as usize),
+        let tx_pos = self.get_tx_position(txid)?;
+        match self
+            .file_pos_to_height
+            .get(&(tx_pos.n_file, tx_pos.n_data_pos))
+        {
+            Some(height) => Ok(*height as usize),
             None => Err(Error::CannotFindHeightForTransaction(txid)),
         }
     }
